@@ -122,29 +122,40 @@ async def fetch_latest_candles(limit: int = 6000) -> List[Dict]:
         return []
 
 def format_candles_for_gemini(candles: List[Dict]) -> str:
-    """Format all 6k candles for comprehensive analysis"""
+    """Format comprehensive candle data for AI analysis"""
     if not candles:
         return "No candle data available"
     
-    # Use all available candles (up to 6000)
-    formatted_data = f"Bitcoin BTCUSDT - {len(candles)} minute candles:\n"
-    formatted_data += "Recent 100 candles (Time|OHLC|Vol):\n"
+    formatted_data = f"Bitcoin BTCUSDT - {len(candles)} minute candles for analysis:\n\n"
     
-    # Show last 100 for detailed view
-    recent = candles[-100:]
-    for candle in recent:
+    # Send last 1000 candles (compromise between detail and token limits)
+    analysis_candles = candles[-1000:] if len(candles) > 1000 else candles
+    
+    formatted_data += f"DETAILED CANDLE DATA ({len(analysis_candles)} candles):\n"
+    formatted_data += "Time|Open|High|Low|Close|Volume\n"
+    
+    # Send actual candle data
+    for i, candle in enumerate(analysis_candles):
         ts = candle.get('timestamp', '')[-8:-3]
-        o, h, l, c = candle.get('open', 0), candle.get('high', 0), candle.get('low', 0), candle.get('close', 0)
-        v = candle.get('volume', 0)
-        formatted_data += f"{ts}|{o:.0f}/{h:.0f}/{l:.0f}/{c:.0f}|{v:.1f}\n"
+        o = float(candle.get('open', 0))
+        h = float(candle.get('high', 0))
+        l = float(candle.get('low', 0))
+        c = float(candle.get('close', 0))
+        v = float(candle.get('volume', 0))
+        formatted_data += f"{ts}|{o:.0f}|{h:.0f}|{l:.0f}|{c:.0f}|{v:.1f}\n"
     
-    # Add statistical summary of all candles
-    closes = [float(c.get('close', 0)) for c in candles if c.get('close')]
-    if closes:
-        current = closes[-1]
-        high_24h = max(closes[-1440:]) if len(closes) >= 1440 else max(closes)
-        low_24h = min(closes[-1440:]) if len(closes) >= 1440 else min(closes)
-        formatted_data += f"\nCurrent: ${current:.0f} | 24h High: ${high_24h:.0f} | 24h Low: ${low_24h:.0f}"
+    # Add market context from full dataset
+    all_closes = [float(c.get('close', 0)) for c in candles if c.get('close')]
+    if all_closes:
+        current = all_closes[-1]
+        high_24h = max(all_closes[-1440:]) if len(all_closes) >= 1440 else max(all_closes)
+        low_24h = min(all_closes[-1440:]) if len(all_closes) >= 1440 else min(all_closes)
+        
+        formatted_data += f"\nMARKET CONTEXT:\n"
+        formatted_data += f"Current: ${current:.0f}\n"
+        formatted_data += f"24h High: ${high_24h:.0f}\n" 
+        formatted_data += f"24h Low: ${low_24h:.0f}\n"
+        formatted_data += f"Total dataset: {len(candles)} candles\n"
     
     return formatted_data
 
