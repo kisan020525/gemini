@@ -89,13 +89,13 @@ def get_next_api_key() -> str:
     for attempt in range(6):
         key_index = (current_api_key_index + attempt) % 6
         
-        # Check daily limit (max 10 per day per key)
-        if api_key_daily_count[key_index] >= 10:
+        # Check daily limit (max 250 per day per key = 1500 total)
+        if api_key_daily_count[key_index] >= 250:
             continue
             
-        # Check minimum time between calls (15 minutes)
+        # Check minimum time between calls (1 minute for higher throughput)
         time_since_last = current_time - api_key_last_used[key_index]
-        if time_since_last < 900:  # 15 minutes
+        if time_since_last < 60:  # 1 minute
             continue
         
         # This key is available
@@ -105,7 +105,7 @@ def get_next_api_key() -> str:
         
         api_key = GEMINI_API_KEYS[key_index]
         if api_key:
-            print(f"🔑 Using API Key #{key_index + 1} (Daily: {api_key_daily_count[key_index]}/10)")
+            print(f"🔑 Using API Key #{key_index + 1} (Daily: {api_key_daily_count[key_index]}/250)")
             return api_key
     
     # No keys available
@@ -276,7 +276,7 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         if "429" in error_msg or "quota" in error_msg.lower() or "rate" in error_msg.lower():
             print(f"🚫 Rate limit on API key #{current_api_key_index + 1}")
             # Mark this key as exhausted for today
-            api_key_daily_count[current_api_key_index] = 10
+            api_key_daily_count[current_api_key_index] = 250
         else:
             print(f"❌ Gemini error: {e}")
         
@@ -432,7 +432,7 @@ async def print_stats():
     
     # Show API key usage
     total_daily_usage = sum(api_key_daily_count)
-    print(f"📈 Balance: ${demo_balance:.0f} | Return: {total_return:.1f}% | Trades: {total_trades} | Win: {win_rate:.0f}% | API: {total_daily_usage}/60")
+    print(f"📈 Balance: ${demo_balance:.0f} | Return: {total_return:.1f}% | Trades: {total_trades} | Win: {win_rate:.0f}% | API: {total_daily_usage}/1500")
 
 async def wait_for_new_candle(last_candle_time: str) -> bool:
     """Wait for new candle to be added to Supabase"""
