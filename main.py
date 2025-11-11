@@ -169,29 +169,52 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         response = model.generate_content(prompt)
         response_text = response.text.strip()
         
-        # Try to parse JSON
+        # Enhanced JSON parsing for Gemini 2.5
         try:
+            # Remove markdown formatting
             if '```json' in response_text:
-                response_text = response_text.split('```json')[1].split('```')[0]
+                response_text = response_text.split('```json')[1].split('```')[0].strip()
             elif '```' in response_text:
-                response_text = response_text.split('```')[1]
+                response_text = response_text.split('```')[1].strip()
+            
+            # Clean up common issues
+            response_text = response_text.replace('\n', '').replace('  ', ' ')
+            
+            # Try to find JSON object
+            start = response_text.find('{')
+            end = response_text.rfind('}') + 1
+            if start >= 0 and end > start:
+                response_text = response_text[start:end]
             
             result = json.loads(response_text)
             
-            # Add missing fields
-            result['entry'] = current_price
-            result['stop_loss'] = current_price * 0.98
-            result['take_profit'] = current_price * 1.04
-            result['reasoning'] = result.get('reasoning', 'AI analysis')
+            # Validate and add missing fields
+            result['signal'] = result.get('signal', 'HOLD').upper()
+            result['confidence'] = int(result.get('confidence', 5))
+            result['entry'] = float(result.get('entry', current_price))
+            result['stop_loss'] = float(result.get('stop_loss', current_price * 0.98))
+            result['take_profit'] = float(result.get('take_profit', current_price * 1.04))
+            result['reasoning'] = str(result.get('reasoning', 'AI analysis'))
             
             return result
             
-        except json.JSONDecodeError:
-            # Fallback if JSON parsing fails
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            # Enhanced fallback - try to extract signal from text
+            text_upper = response_text.upper()
+            signal = "HOLD"
+            confidence = 5
+            
+            if "BUY" in text_upper and "SELL" not in text_upper:
+                signal = "BUY"
+                confidence = 7
+            elif "SELL" in text_upper and "BUY" not in text_upper:
+                signal = "SELL" 
+                confidence = 7
+            
             return {
-                "signal": "HOLD", 
-                "confidence": 5, 
-                "reasoning": "JSON parse error",
+                "signal": signal,
+                "confidence": confidence,
+                "reasoning": f"Text parse: {response_text[:50]}",
                 "entry": current_price,
                 "stop_loss": current_price * 0.98,
                 "take_profit": current_price * 1.04
