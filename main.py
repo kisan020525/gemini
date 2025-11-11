@@ -608,6 +608,89 @@ async def wait_for_new_candle(last_candle_time: str) -> bool:
         except:
             await asyncio.sleep(30)
 
+async def get_trade_management_decision(current_price: float, position_data: Dict) -> Dict:
+    """Get trade management decision from Gemini 2.5 Flash Lite"""
+    try:
+        # Get next available Lite API key
+        api_key = get_next_lite_api_key()
+        if not api_key:
+            print("🚫 No trade management API keys available")
+            return {"action": "HOLD", "reasoning": "No API keys available"}
+        
+        # Configure Gemini 2.5 Flash Lite for trade management
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-2.5-flash-lite-preview-09-2025')
+        
+        # Trade management prompt with full context
+        prompt = f"""
+        You are an AI trade manager. Make smart closing decisions based on market conditions.
+        
+        Current Bitcoin price: ${current_price:.0f}
+        
+        OPEN POSITION:
+        Direction: {position_data.get('direction', 'UNKNOWN').upper()}
+        Entry: ${position_data.get('entry_price', 0):.0f}
+        Stop Loss: ${position_data.get('stop_loss', 0):.0f}
+        Take Profit: ${position_data.get('take_profit', 0):.0f}
+        Current Capital: ${position_data.get('capital', 10000):.0f}
+        
+        CURRENT CANDLE:
+        High: ${position_data.get('candle_high', 0):.0f}
+        Low: ${position_data.get('candle_low', 0):.0f}
+        Close: ${position_data.get('current_price', 0):.0f}
+        
+        ANALYSIS NEEDED:
+        Should we close this position NOW or continue holding?
+        
+        Consider:
+        - Has SL/TP been hit by candle high/low?
+        - Current profit/loss situation
+        - Risk management and capital preservation
+        - Market momentum and price action
+        - Better exit opportunities
+        
+        DECISION RULES:
+        - CLOSE if SL/TP levels hit
+        - CLOSE if better exit opportunity
+        - HOLD if position is still valid
+        
+        JSON RESPONSE:
+        {{
+            "action": "CLOSE/HOLD",
+            "reasoning": "Why close or hold",
+            "urgency": 1-10
+        }}
+        """
+        
+        response = model.generate_content(prompt)
+        response_text = response.text.strip()
+        
+        try:
+            if '```json' in response_text:
+                response_text = response_text.split('```json')[1].split('```')[0].strip()
+            
+            result = json.loads(response_text)
+            return {
+                "action": result.get("action", "HOLD"),
+                "reasoning": result.get("reasoning", "Trade management analysis"),
+                "urgency": int(result.get("urgency", 5))
+            }
+            
+        except:
+            return {
+                "action": "HOLD",
+                "reasoning": "Parse error - holding position",
+                "urgency": 1
+            }
+            
+    except Exception as e:
+        print(f"❌ Trade management error: {e}")
+        return {
+            "action": "HOLD",
+            "reasoning": f"Error: {str(e)[:30]}",
+            "urgency": 1
+        }
+
 async def sync_position_from_database():
     """Sync current position from database on startup"""
     global current_position, demo_balance, total_trades, winning_trades
