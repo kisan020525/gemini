@@ -32,7 +32,7 @@ GEMINI_API_KEYS = [
 # Trading Configuration
 DEMO_CAPITAL = 10000.0
 RISK_PER_TRADE = 0.02
-ANALYSIS_INTERVAL = 60  # Every 1 minute with 6 API keys!
+ANALYSIS_INTERVAL = 900  # 15 minutes for free tier (4 calls per hour per key = 24 total)
 
 # IST timezone
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -303,9 +303,9 @@ async def print_stats():
 
 async def main():
     """Main trading loop with 6 API keys"""
-    print("🤖 Gemini Trading Bot - 6 API Keys (1500 RPD)")
+    print("🤖 Gemini Trading Bot - 6 API Keys (24 calls/hour)")
     print(f"💰 Demo Capital: ${DEMO_CAPITAL}")
-    print("⚡ Every minute analysis enabled!")
+    print("⚡ Every 15 minutes analysis (free tier optimized)")
     
     # Validate API keys
     valid_keys = [key for key in GEMINI_API_KEYS if key]
