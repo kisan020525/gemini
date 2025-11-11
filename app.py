@@ -23,16 +23,17 @@ def dashboard():
 def get_trades():
     if trades_supabase:
         try:
-            response = trades_supabase.table("paper_trades").select("*").order("timestamp", desc=True).limit(10).execute()
+            # Get all trades ordered by timestamp
+            response = trades_supabase.table("paper_trades").select("*").order("timestamp", desc=False).execute()
             return jsonify(response.data)
-        except:
-            pass
+        except Exception as e:
+            print(f"Trades DB error: {e}")
     
     # Fallback to local file
     try:
         with open('trades.json', 'r') as f:
             trades = json.load(f)
-        return jsonify(trades[-10:])
+        return jsonify(trades)
     except:
         return jsonify([])
 

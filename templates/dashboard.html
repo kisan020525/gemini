@@ -5,116 +5,226 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: Arial; margin: 20px; background: #1a1a1a; color: #fff; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .card { background: #2d2d2d; padding: 20px; margin: 10px 0; border-radius: 8px; }
-        .price { font-size: 2em; color: #00ff88; }
-        .trade { padding: 10px; margin: 5px 0; background: #333; border-radius: 4px; }
-        .buy { border-left: 4px solid #00ff88; }
-        .sell { border-left: 4px solid #ff4444; }
-        .hold { border-left: 4px solid #ffaa00; }
-        .status { display: flex; gap: 20px; }
-        .stat { text-align: center; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #444; }
-        .refresh { background: #007acc; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+        body { font-family: Arial; margin: 20px; background: #0a0a0a; color: #fff; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .card { background: #1a1a1a; padding: 20px; margin: 10px 0; border-radius: 8px; border: 1px solid #333; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .stat-card { background: #2a2a2a; padding: 15px; border-radius: 6px; text-align: center; }
+        .stat-value { font-size: 1.8em; font-weight: bold; margin-bottom: 5px; }
+        .stat-label { font-size: 0.9em; color: #aaa; }
+        .positive { color: #00ff88; }
+        .negative { color: #ff4444; }
+        .neutral { color: #ffaa00; }
+        .current-price { font-size: 2.5em; color: #00ff88; text-align: center; }
+        .trade { padding: 12px; margin: 8px 0; background: #2a2a2a; border-radius: 6px; border-left: 4px solid; }
+        .trade.long { border-left-color: #00ff88; }
+        .trade.short { border-left-color: #ff4444; }
+        .trade.open { border-left-color: #ffaa00; }
+        .trade-header { display: flex; justify-content: between; align-items: center; margin-bottom: 8px; }
+        .trade-id { font-weight: bold; color: #fff; }
+        .trade-time { font-size: 0.8em; color: #aaa; }
+        .trade-details { font-size: 0.9em; line-height: 1.4; }
+        .pnl { font-weight: bold; font-size: 1.1em; }
+        .refresh { background: #007acc; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; margin: 10px 0; }
+        .refresh:hover { background: #0066aa; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #333; }
+        th { background: #2a2a2a; color: #fff; }
+        .status-open { color: #ffaa00; }
+        .status-closed { color: #aaa; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🤖 Gemini Trading Bot Dashboard</h1>
         
+        <!-- Current Price -->
         <div class="card">
-            <h2>Current Status</h2>
-            <div class="status">
-                <div class="stat">
-                    <div class="price" id="price">$0</div>
-                    <div>Bitcoin Price</div>
+            <div class="current-price" id="price">$0</div>
+            <div style="text-align: center; color: #aaa;">Bitcoin Price</div>
+        </div>
+
+        <!-- Trading Statistics -->
+        <div class="card">
+            <h2>📊 Trading Performance</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="capital">$10,000</div>
+                    <div class="stat-label">Current Capital</div>
                 </div>
-                <div class="stat">
-                    <div id="signal">-</div>
-                    <div>Latest Signal</div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalPnl">$0</div>
+                    <div class="stat-label">Total P&L</div>
                 </div>
-                <div class="stat">
-                    <div id="confidence">-</div>
-                    <div>Confidence</div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalTrades">0</div>
+                    <div class="stat-label">Total Trades</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="winRate">0%</div>
+                    <div class="stat-label">Win Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="openTrades">0</div>
+                    <div class="stat-label">Open Positions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avgPnl">$0</div>
+                    <div class="stat-label">Avg P&L</div>
                 </div>
             </div>
-            <button class="refresh" onclick="loadData()">🔄 Refresh</button>
+            <button class="refresh" onclick="loadData()">🔄 Refresh Data</button>
         </div>
 
+        <!-- Open Positions -->
         <div class="card">
-            <h2>Recent Trades</h2>
-            <div id="trades"></div>
+            <h2>🔥 Open Positions</h2>
+            <div id="openPositions">No open positions</div>
         </div>
 
+        <!-- Recent Trades -->
         <div class="card">
-            <h2>Price Chart (Last 100 Candles)</h2>
-            <canvas id="chart" width="800" height="300"></canvas>
+            <h2>📈 Recent Trades</h2>
+            <div id="recentTrades">Loading...</div>
+        </div>
+
+        <!-- Trade History -->
+        <div class="card">
+            <h2>📋 Complete Trade History</h2>
+            <div id="tradeHistory">Loading...</div>
         </div>
     </div>
 
     <script>
+        function formatTime(timestamp) {
+            return new Date(timestamp).toLocaleString();
+        }
+
+        function formatPnL(pnl) {
+            if (!pnl) return '$0.00';
+            const formatted = parseFloat(pnl).toFixed(2);
+            return pnl > 0 ? `+$${formatted}` : `$${formatted}`;
+        }
+
         function loadData() {
-            // Load status
+            // Load current status
             fetch('/api/status')
                 .then(r => r.json())
                 .then(data => {
                     document.getElementById('price').textContent = '$' + data.current_price.toFixed(0);
-                    if (data.latest_trade) {
-                        document.getElementById('signal').textContent = data.latest_trade.direction.toUpperCase();
-                        document.getElementById('confidence').textContent = data.latest_trade.confidence + '/10';
-                    }
                 });
 
-            // Load trades
+            // Load all trades for analysis
             fetch('/api/trades')
                 .then(r => r.json())
                 .then(trades => {
-                    const html = trades.map(t => `
-                        <div class="trade ${t.direction}">
-                            <strong>${t.direction.toUpperCase()}</strong> @ $${t.entry_price.toFixed(0)} 
-                            | SL: $${t.stop_loss.toFixed(0)} | TP: $${t.take_profit.toFixed(0)}
-                            | Confidence: ${t.confidence}/10
-                            <br><small>${t.reasoning}</small>
-                            <br><small>${new Date(t.timestamp).toLocaleString()}</small>
+                    if (!trades.length) {
+                        document.getElementById('recentTrades').innerHTML = '<p>No trades yet</p>';
+                        document.getElementById('tradeHistory').innerHTML = '<p>No trade history</p>';
+                        document.getElementById('openPositions').innerHTML = '<p>No open positions</p>';
+                        return;
+                    }
+
+                    // Calculate statistics
+                    const closedTrades = trades.filter(t => t.status === 'closed');
+                    const openTrades = trades.filter(t => t.status === 'open');
+                    const totalPnl = closedTrades.reduce((sum, t) => sum + (parseFloat(t.pnl) || 0), 0);
+                    const winningTrades = closedTrades.filter(t => parseFloat(t.pnl) > 0).length;
+                    const winRate = closedTrades.length > 0 ? (winningTrades / closedTrades.length * 100) : 0;
+                    const avgPnl = closedTrades.length > 0 ? totalPnl / closedTrades.length : 0;
+                    const currentCapital = 10000 + totalPnl;
+
+                    // Update statistics
+                    document.getElementById('capital').textContent = '$' + currentCapital.toFixed(0);
+                    document.getElementById('capital').className = 'stat-value ' + (totalPnl >= 0 ? 'positive' : 'negative');
+                    
+                    document.getElementById('totalPnl').textContent = formatPnL(totalPnl);
+                    document.getElementById('totalPnl').className = 'stat-value ' + (totalPnl >= 0 ? 'positive' : 'negative');
+                    
+                    document.getElementById('totalTrades').textContent = trades.length;
+                    document.getElementById('winRate').textContent = winRate.toFixed(1) + '%';
+                    document.getElementById('winRate').className = 'stat-value ' + (winRate >= 50 ? 'positive' : 'negative');
+                    
+                    document.getElementById('openTrades').textContent = openTrades.length;
+                    document.getElementById('avgPnl').textContent = formatPnL(avgPnl);
+                    document.getElementById('avgPnl').className = 'stat-value ' + (avgPnl >= 0 ? 'positive' : 'negative');
+
+                    // Show open positions
+                    if (openTrades.length > 0) {
+                        const openHtml = openTrades.map(t => `
+                            <div class="trade open">
+                                <div class="trade-header">
+                                    <span class="trade-id">Trade #${t.trade_id} - ${t.direction.toUpperCase()}</span>
+                                    <span class="trade-time">${formatTime(t.timestamp)}</span>
+                                </div>
+                                <div class="trade-details">
+                                    <strong>Entry:</strong> $${parseFloat(t.entry_price).toFixed(0)} | 
+                                    <strong>SL:</strong> $${parseFloat(t.stop_loss).toFixed(0)} | 
+                                    <strong>TP:</strong> $${parseFloat(t.take_profit).toFixed(0)} | 
+                                    <strong>Size:</strong> ${parseFloat(t.position_size).toFixed(4)} BTC<br>
+                                    <strong>Confidence:</strong> ${t.confidence}/10 | 
+                                    <strong>Risk:</strong> $${parseFloat(t.risk_amount).toFixed(0)}<br>
+                                    <em>${t.reasoning.substring(0, 100)}...</em>
+                                </div>
+                            </div>
+                        `).join('');
+                        document.getElementById('openPositions').innerHTML = openHtml;
+                    } else {
+                        document.getElementById('openPositions').innerHTML = '<p>No open positions</p>';
+                    }
+
+                    // Show recent trades (last 5)
+                    const recentHtml = trades.slice(-5).reverse().map(t => `
+                        <div class="trade ${t.direction} ${t.status}">
+                            <div class="trade-header">
+                                <span class="trade-id">Trade #${t.trade_id} - ${t.direction.toUpperCase()}</span>
+                                <span class="trade-time">${formatTime(t.timestamp)}</span>
+                            </div>
+                            <div class="trade-details">
+                                <strong>Entry:</strong> $${parseFloat(t.entry_price).toFixed(0)} | 
+                                <strong>Exit:</strong> ${t.exit_price ? '$' + parseFloat(t.exit_price).toFixed(0) : 'Open'} | 
+                                <strong>P&L:</strong> <span class="pnl ${parseFloat(t.pnl) >= 0 ? 'positive' : 'negative'}">${formatPnL(t.pnl)}</span><br>
+                                <strong>Status:</strong> <span class="status-${t.status}">${t.status.toUpperCase()}</span> | 
+                                <strong>Reason:</strong> ${t.close_reason || 'Active'}<br>
+                                <em>${t.reasoning.substring(0, 80)}...</em>
+                            </div>
                         </div>
                     `).join('');
-                    document.getElementById('trades').innerHTML = html;
-                });
+                    document.getElementById('recentTrades').innerHTML = recentHtml;
 
-            // Load chart
-            fetch('/api/candles')
-                .then(r => r.json())
-                .then(candles => {
-                    drawChart(candles);
+                    // Show complete history table
+                    const historyHtml = `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Time</th>
+                                    <th>Direction</th>
+                                    <th>Entry</th>
+                                    <th>Exit</th>
+                                    <th>P&L</th>
+                                    <th>Status</th>
+                                    <th>Confidence</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${trades.reverse().map(t => `
+                                    <tr>
+                                        <td>${t.trade_id}</td>
+                                        <td>${formatTime(t.timestamp)}</td>
+                                        <td class="${t.direction}">${t.direction.toUpperCase()}</td>
+                                        <td>$${parseFloat(t.entry_price).toFixed(0)}</td>
+                                        <td>${t.exit_price ? '$' + parseFloat(t.exit_price).toFixed(0) : '-'}</td>
+                                        <td class="${parseFloat(t.pnl) >= 0 ? 'positive' : 'negative'}">${formatPnL(t.pnl)}</td>
+                                        <td class="status-${t.status}">${t.status.toUpperCase()}</td>
+                                        <td>${t.confidence}/10</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                    document.getElementById('tradeHistory').innerHTML = historyHtml;
                 });
-        }
-
-        function drawChart(candles) {
-            const canvas = document.getElementById('chart');
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            if (!candles.length) return;
-            
-            const prices = candles.map(c => parseFloat(c.close));
-            const min = Math.min(...prices);
-            const max = Math.max(...prices);
-            const range = max - min;
-            
-            ctx.strokeStyle = '#00ff88';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            
-            prices.forEach((price, i) => {
-                const x = (i / prices.length) * canvas.width;
-                const y = canvas.height - ((price - min) / range) * canvas.height;
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            });
-            
-            ctx.stroke();
         }
 
         // Auto refresh every 30 seconds
