@@ -6,14 +6,19 @@ from datetime import datetime, timezone, timedelta
 
 app = Flask(__name__)
 
-# Supabase connections
-SUPABASE_URL = os.getenv("SUPABASE_URL")  # For candles
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-TRADES_SUPABASE_URL = os.getenv("TRADES_SUPABASE_URL")  # For trades
-TRADES_SUPABASE_KEY = os.getenv("TRADES_SUPABASE_KEY")
+# Supabase connections with error handling
+try:
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+    TRADES_SUPABASE_URL = os.getenv("TRADES_SUPABASE_URL")
+    TRADES_SUPABASE_KEY = os.getenv("TRADES_SUPABASE_KEY")
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)  # Candles
-trades_supabase = create_client(TRADES_SUPABASE_URL, TRADES_SUPABASE_KEY) if TRADES_SUPABASE_URL else None
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL else None
+    trades_supabase = create_client(TRADES_SUPABASE_URL, TRADES_SUPABASE_KEY) if TRADES_SUPABASE_URL else None
+except Exception as e:
+    print(f"Supabase connection error: {e}")
+    supabase = None
+    trades_supabase = None
 
 @app.route('/')
 def dashboard():
@@ -39,27 +44,37 @@ def get_trades():
 
 @app.route('/api/candles')
 def get_candles():
-    try:
-        response = supabase.table("candles").select("*").order("timestamp", desc=True).limit(100).execute()
-        return jsonify(response.data)
-    except:
-        return jsonify([])
+    if supabase:
+        try:
+            response = supabase.table("candles").select("*").order("timestamp", desc=True).limit(100).execute()
+            return jsonify(response.data)
+        except Exception as e:
+            print(f"Candles error: {e}")
+    return jsonify([])
 
 @app.route('/api/status')
 def get_status():
     try:
+        current_price = 0
+        latest_trade = None
+        
         # Get latest candle from main Supabase
-        candles = supabase.table("candles").select("*").order("timestamp", desc=True).limit(1).execute()
-        current_price = float(candles.data[0]['close']) if candles.data else 0
+        if supabase:
+            try:
+                candles = supabase.table("candles").select("*").order("timestamp", desc=True).limit(1).execute()
+                if candles.data:
+                    current_price = float(candles.data[0]['close'])
+            except Exception as e:
+                print(f"Price fetch error: {e}")
         
         # Get latest trade from trades Supabase
-        latest_trade = None
         if trades_supabase:
             try:
                 trades = trades_supabase.table("paper_trades").select("*").order("timestamp", desc=True).limit(1).execute()
-                latest_trade = trades.data[0] if trades.data else None
-            except:
-                pass
+                if trades.data:
+                    latest_trade = trades.data[0]
+            except Exception as e:
+                print(f"Latest trade error: {e}")
         
         # Fallback to local file
         if not latest_trade:
@@ -75,8 +90,13 @@ def get_status():
             "latest_trade": latest_trade,
             "timestamp": datetime.now().isoformat()
         })
-    except:
+    except Exception as e:
+        print(f"Status error: {e}")
         return jsonify({"current_price": 0, "latest_trade": None})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    port = int(os.environ.get('PORT', 5000))
+    print(f"Starting Flask app on port {port}")
+    print(f"Supabase connected: {supabase is not None}")
+    print(f"Trades Supabase connected: {trades_supabase is not None}")
+    app.run(host='0.0.0.0', port=port, debug=False)
