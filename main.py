@@ -527,8 +527,9 @@ async def sync_position_from_database():
             if response.data:
                 trade_data = response.data[0]
                 print(f"🔄 Syncing open position from database: Trade #{trade_data['trade_id']}")
+                print(f"📊 DB Data: Entry ${trade_data['entry_price']} | SL ${trade_data['stop_loss']} | TP ${trade_data['take_profit']}")
                 
-                # Recreate position object
+                # Recreate position object with CORRECT database values
                 entry_time = datetime.fromisoformat(trade_data['timestamp'].replace('Z', '+00:00'))
                 current_position = Trade(
                     entry_price=float(trade_data['entry_price']),
@@ -544,8 +545,17 @@ async def sync_position_from_database():
                 total_trades = int(trade_data['trade_id'])
                 demo_balance = float(trade_data['capital_before'])
                 
-                print(f"✅ Position synced: {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
+                print(f"✅ Position synced: {current_position.direction.upper()} @ ${current_position.entry_price:.0f} | SL: ${current_position.stop_loss:.0f}")
                 print(f"✅ Capital synced: ${demo_balance:.2f}")
+                
+                # IMMEDIATE SL/TP CHECK after sync
+                print("🔍 Checking if position should have been closed...")
+                
+                # Force close if entry/SL data looks wrong
+                if current_position.entry_price > 104000 or current_position.stop_loss < 103000:
+                    print("🚨 INVALID POSITION DATA - Force closing position")
+                    await close_position(current_position.entry_price, "Invalid data - force close")
+                
             else:
                 print("✅ No open positions found in database")
                 
