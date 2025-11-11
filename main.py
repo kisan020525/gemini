@@ -176,58 +176,51 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.5-flash-preview-09-2025')
         
-        # Unleash full AI analytical power
+        # Unleash full AI analytical power with PAST PERFORMANCE
         prompt = f"""
-        You are an advanced AI with access to vast financial knowledge. Analyze {len(candles_data.split('\n'))} Bitcoin candles using your complete analytical capabilities.
+        You are an advanced AI analyzing Bitcoin with access to your PAST TRADING PERFORMANCE.
 
         Current Bitcoin price: ${current_price:.0f}
 
-        MARKET DATA:
+        {await get_past_trades_for_gemini()}
+
+        CURRENT MARKET DATA:
         {candles_data}
 
         ANALYSIS DIRECTIVE:
-        Use your FULL AI knowledge base. Apply every relevant concept from:
+        Learn from your past trades! Use your FULL AI knowledge base and PAST PERFORMANCE to make better decisions.
+        
+        Apply every relevant concept:
         - Mathematical models (statistics, probability, regression, neural patterns)
-        - Financial theory (EMH, behavioral finance, market microstructure)
-        - Technical analysis (all indicators, patterns, oscillators)
-        - Quantitative methods (algorithmic signals, machine learning patterns)
+        - Technical analysis (all indicators, patterns, oscillators)  
         - Market psychology (sentiment analysis, crowd behavior)
-        - Economic principles (supply/demand, liquidity, volatility)
-        - Information theory (signal processing, noise filtering)
-        - Game theory (market participant behavior)
-        - Chaos theory (non-linear dynamics, fractals)
-        - Any other relevant knowledge domains
+        - Your own trading history and mistakes
+        - Risk management based on past performance
 
         COMPUTATIONAL APPROACH:
-        1. Process ALL candle data simultaneously
-        2. Identify patterns across multiple timeframes and scales
-        3. Calculate probabilities and statistical significance
-        4. Cross-validate signals using multiple methodologies
-        5. Optimize risk-adjusted returns
-        6. Consider market regime and structural changes
-        7. Apply ensemble methods for signal confirmation
+        1. Review your past performance and learn from mistakes
+        2. Process ALL candle data simultaneously
+        3. Identify patterns across multiple timeframes
+        4. Calculate probabilities based on historical success
+        5. Optimize risk-adjusted returns from experience
+        6. Only trade when you have HIGH CONFIDENCE (8+)
 
-        OUTPUT REQUIREMENTS:
-        Provide comprehensive analysis with mathematical precision. Use your AI capabilities to find patterns humans might miss.
+        IMPORTANT: You can only have ONE TRADE AT A TIME. If you're not very confident (8+), choose HOLD.
 
         JSON RESPONSE:
         {{
-            "ai_analysis": "Your complete computational analysis",
-            "pattern_recognition": "Patterns identified across all scales",
-            "statistical_confidence": "Mathematical probability assessment",
+            "performance_analysis": "What you learned from past trades",
+            "market_analysis": "Current market assessment", 
             "signal": "BUY/SELL/HOLD",
             "confidence": 1-10,
             "entry": {current_price},
             "stop_loss": price,
             "take_profit": price,
             "risk_reward_ratio": "1:X",
-            "probability_success": "X%",
-            "market_regime": "trending/ranging/volatile/transitional",
-            "key_factors": ["primary factors driving decision"],
-            "reasoning": "Detailed analytical logic"
+            "reasoning": "Why this trade based on analysis + past performance"
         }}
 
-        MAXIMIZE YOUR AI ANALYTICAL POWER. FIND EVERY EDGE.
+        LEARN FROM YOUR MISTAKES. ONLY TRADE WITH HIGH CONFIDENCE.
         """
         
         response = model.generate_content(prompt)
@@ -316,16 +309,19 @@ def calculate_position_size(entry: float, stop_loss: float, risk_amount: float) 
     return 0
 
 async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
-    """Execute paper trade only when highly confident - ONE TRADE AT A TIME"""
+    """Execute paper trade - STRICTLY ONE AT A TIME"""
     global current_position, demo_balance, total_trades
     
     # Only trade with high confidence (8+ out of 10)
     if signal['signal'] == 'HOLD' or signal['confidence'] < 8:
+        if current_position and current_position.status == 'open':
+            print(f"⏸️ Holding current position: {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
         return None
     
-    # ONLY ONE TRADE AT A TIME - no multiple positions
+    # STRICTLY ONE TRADE AT A TIME - no exceptions
     if current_position and current_position.status == 'open':
-        print(f"⏸️ Position already open: {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
+        print(f"🚫 CANNOT TRADE: Position already open - {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
+        print(f"🔒 ONE TRADE AT A TIME RULE - Wait for current trade to close")
         return None
     
     # Validate trade parameters with LIVE CAPITAL
@@ -373,7 +369,8 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
         "reasoning": signal['reasoning'],
         "status": "open",
         "capital_before": demo_balance,  # Track capital before trade
-        "capital_after": demo_balance    # Will update when closed
+        "capital_after": demo_balance,   # Will update when closed
+        "total_pnl": demo_balance - 10000.0  # Running total P&L
     }
     
     if trades_supabase:
@@ -429,7 +426,8 @@ async def close_position(exit_price: float, reason: str):
                 "pnl": pnl,
                 "status": "closed",
                 "close_reason": reason,
-                "capital_after": demo_balance  # Update final capital
+                "capital_after": demo_balance,  # Update final capital
+                "total_pnl": demo_balance - 10000.0  # Running total P&L
             }).eq("trade_id", total_trades).execute()
             
             print(f"📊 CLOSED #{total_trades}: ${exit_price:.0f} | PnL: ${pnl:.2f} | Capital: ${demo_balance:.2f} | {reason}")
@@ -512,51 +510,55 @@ async def wait_for_new_candle(last_candle_time: str) -> bool:
         except:
             await asyncio.sleep(30)
 
-import json
-
-# Local trade storage
-TRADES_FILE = "trades.json"
-
-def save_trade_locally(trade_data):
-    """Save trade to local JSON file"""
+async def get_past_trades_for_gemini(limit: int = 30) -> str:
+    """Get past trades to show Gemini its performance"""
     try:
-        # Load existing trades
-        try:
-            with open(TRADES_FILE, 'r') as f:
-                trades = json.load(f)
-        except:
-            trades = []
+        if trades_supabase:
+            response = trades_supabase.table("paper_trades").select("*").order("timestamp", desc=True).limit(limit).execute()
+            trades = response.data
+        else:
+            # Fallback to local file
+            with open('trades.json', 'r') as f:
+                all_trades = json.load(f)
+            trades = all_trades[-limit:] if len(all_trades) > limit else all_trades
         
-        # Add new trade
-        trades.append(trade_data)
+        if not trades:
+            return "No previous trades available."
         
-        # Save back
-        with open(TRADES_FILE, 'w') as f:
-            json.dump(trades, f)
+        # Calculate performance stats
+        closed_trades = [t for t in trades if t.get('status') == 'closed']
+        total_pnl = sum(float(t.get('pnl', 0)) for t in closed_trades)
+        wins = len([t for t in closed_trades if float(t.get('pnl', 0)) > 0])
+        win_rate = (wins / len(closed_trades) * 100) if closed_trades else 0
         
-        return True
-    except:
-        return False
+        performance_summary = f"""
+YOUR PAST PERFORMANCE (Last {len(trades)} trades):
+Total P&L: ${total_pnl:.2f}
+Win Rate: {win_rate:.1f}% ({wins}/{len(closed_trades)} wins)
+Capital: ${10000 + total_pnl:.2f}
 
-def update_trade_locally(trade_id, update_data):
-    """Update trade in local JSON file"""
-    try:
-        with open(TRADES_FILE, 'r') as f:
-            trades = json.load(f)
+RECENT TRADES:
+"""
         
-        # Find and update trade
-        for trade in trades:
-            if trade.get('trade_id') == trade_id:
-                trade.update(update_data)
-                break
+        for trade in reversed(trades[-10:]):  # Show last 10 trades
+            pnl = float(trade.get('pnl', 0))
+            status = trade.get('status', 'unknown')
+            direction = trade.get('direction', '').upper()
+            entry = float(trade.get('entry_price', 0))
+            exit_price = trade.get('exit_price')
+            confidence = trade.get('confidence', 0)
+            
+            if status == 'closed':
+                result = "WIN" if pnl > 0 else "LOSS"
+                performance_summary += f"#{trade.get('trade_id')}: {direction} @${entry:.0f} → ${float(exit_price):.0f} = ${pnl:.2f} ({result}) [Conf: {confidence}/10]\n"
+            else:
+                performance_summary += f"#{trade.get('trade_id')}: {direction} @${entry:.0f} → OPEN [Conf: {confidence}/10]\n"
         
-        # Save back
-        with open(TRADES_FILE, 'w') as f:
-            json.dump(trades, f)
+        return performance_summary
         
-        return True
-    except:
-        return False
+    except Exception as e:
+        print(f"Error getting past trades: {e}")
+        return "Unable to retrieve past performance."
 
 async def main():
     """Main trading loop triggered by new candles"""
