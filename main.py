@@ -454,22 +454,30 @@ async def check_stop_loss_take_profit(current_price: float):
     if not current_position or current_position.status != 'open':
         return
     
+    print(f"🔍 Checking SL/TP: {current_position.direction.upper()} @ ${current_position.entry_price:.0f} | Current: ${current_price:.0f} | SL: ${current_position.stop_loss:.0f} | TP: ${current_position.take_profit:.0f}")
+    
     if current_position.direction == 'long':
         # LONG: SL below entry, TP above entry
         if current_price <= current_position.stop_loss:
-            print(f"🛑 LONG Stop Loss triggered: ${current_price} <= ${current_position.stop_loss}")
+            print(f"🛑 LONG Stop Loss triggered: ${current_price:.0f} <= ${current_position.stop_loss:.0f}")
             await close_position(current_position.stop_loss, "Stop Loss")
+            return
         elif current_price >= current_position.take_profit:
-            print(f"🎯 LONG Take Profit triggered: ${current_price} >= ${current_position.take_profit}")
+            print(f"🎯 LONG Take Profit triggered: ${current_price:.0f} >= ${current_position.take_profit:.0f}")
             await close_position(current_position.take_profit, "Take Profit")
+            return
     else:  # short
         # SHORT: SL above entry, TP below entry  
         if current_price >= current_position.stop_loss:
-            print(f"🛑 SHORT Stop Loss triggered: ${current_price} >= ${current_position.stop_loss}")
+            print(f"🛑 SHORT Stop Loss triggered: ${current_price:.0f} >= ${current_position.stop_loss:.0f}")
             await close_position(current_position.stop_loss, "Stop Loss")
+            return
         elif current_price <= current_position.take_profit:
-            print(f"🎯 SHORT Take Profit triggered: ${current_price} <= ${current_position.take_profit}")
+            print(f"🎯 SHORT Take Profit triggered: ${current_price:.0f} <= ${current_position.take_profit:.0f}")
             await close_position(current_position.take_profit, "Take Profit")
+            return
+    
+    print(f"✅ Position safe: SL/TP not triggered")
 
 async def print_stats():
     """Print trading statistics"""
@@ -570,10 +578,16 @@ async def main():
             
             # Only analyze when new candle arrives
             if current_candle_time != last_candle_time:
-                print(f"🕐 New candle detected: {current_candle_time[-8:-3]}")
+                print(f"🕐 New candle detected: {current_candle_time[-8:-3]} | Price: ${current_price:.0f}")
                 
-                # Check position management first
+                # ALWAYS check position management first with current price
                 await check_stop_loss_take_profit(current_price)
+                
+                # Skip analysis if position was just closed
+                if not current_position or current_position.status != 'open':
+                    print("📊 No open position - analyzing for new trade")
+                else:
+                    print(f"📊 Open {current_position.direction.upper()} @ ${current_position.entry_price:.0f} | SL: ${current_position.stop_loss:.0f} | Current: ${current_price:.0f}")
                 
                 # Analyze with full 6k dataset
                 candles_data = format_candles_for_gemini(candles)
