@@ -128,14 +128,18 @@ def format_candles_for_gemini(candles: List[Dict]) -> str:
     
     formatted_data = f"Bitcoin BTCUSDT - {len(candles)} minute candles for analysis:\n\n"
     
-    # Send last 1000 candles (compromise between detail and token limits)
-    analysis_candles = candles[-1000:] if len(candles) > 1000 else candles
+    # Use ALL candles if under 1000, otherwise use last 1000
+    if len(candles) <= 1000:
+        analysis_candles = candles  # Use all available
+        formatted_data += f"COMPLETE DATASET ({len(analysis_candles)} candles):\n"
+    else:
+        analysis_candles = candles[-1000:]  # Use last 1000
+        formatted_data += f"RECENT DATA ({len(analysis_candles)} of {len(candles)} candles):\n"
     
-    formatted_data += f"DETAILED CANDLE DATA ({len(analysis_candles)} candles):\n"
     formatted_data += "Time|Open|High|Low|Close|Volume\n"
     
     # Send actual candle data
-    for i, candle in enumerate(analysis_candles):
+    for candle in analysis_candles:
         ts = candle.get('timestamp', '')[-8:-3]
         o = float(candle.get('open', 0))
         h = float(candle.get('high', 0))
@@ -144,18 +148,18 @@ def format_candles_for_gemini(candles: List[Dict]) -> str:
         v = float(candle.get('volume', 0))
         formatted_data += f"{ts}|{o:.0f}|{h:.0f}|{l:.0f}|{c:.0f}|{v:.1f}\n"
     
-    # Add market context from full dataset
+    # Add market context
     all_closes = [float(c.get('close', 0)) for c in candles if c.get('close')]
     if all_closes:
         current = all_closes[-1]
-        high_24h = max(all_closes[-1440:]) if len(all_closes) >= 1440 else max(all_closes)
-        low_24h = min(all_closes[-1440:]) if len(all_closes) >= 1440 else min(all_closes)
+        high_period = max(all_closes)
+        low_period = min(all_closes)
         
         formatted_data += f"\nMARKET CONTEXT:\n"
         formatted_data += f"Current: ${current:.0f}\n"
-        formatted_data += f"24h High: ${high_24h:.0f}\n" 
-        formatted_data += f"24h Low: ${low_24h:.0f}\n"
-        formatted_data += f"Total dataset: {len(candles)} candles\n"
+        formatted_data += f"Period High: ${high_period:.0f}\n" 
+        formatted_data += f"Period Low: ${low_period:.0f}\n"
+        formatted_data += f"Dataset: {len(candles)} total candles, {len(analysis_candles)} analyzed\n"
     
     return formatted_data
 
