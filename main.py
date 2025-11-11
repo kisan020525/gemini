@@ -515,6 +515,43 @@ async def wait_for_new_candle(last_candle_time: str) -> bool:
         except:
             await asyncio.sleep(30)
 
+async def sync_position_from_database():
+    """Sync current position from database on startup"""
+    global current_position, demo_balance, total_trades, winning_trades
+    
+    try:
+        if trades_supabase:
+            # Get latest open trade
+            response = trades_supabase.table("paper_trades").select("*").eq("status", "open").order("timestamp", desc=True).limit(1).execute()
+            
+            if response.data:
+                trade_data = response.data[0]
+                print(f"🔄 Syncing open position from database: Trade #{trade_data['trade_id']}")
+                
+                # Recreate position object
+                entry_time = datetime.fromisoformat(trade_data['timestamp'].replace('Z', '+00:00'))
+                current_position = Trade(
+                    entry_price=float(trade_data['entry_price']),
+                    stop_loss=float(trade_data['stop_loss']),
+                    take_profit=float(trade_data['take_profit']),
+                    position_size=float(trade_data['position_size']),
+                    direction=trade_data['direction']
+                )
+                current_position.entry_time = entry_time
+                current_position.status = 'open'
+                
+                # Sync counters
+                total_trades = int(trade_data['trade_id'])
+                demo_balance = float(trade_data['capital_before'])
+                
+                print(f"✅ Position synced: {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
+                print(f"✅ Capital synced: ${demo_balance:.2f}")
+            else:
+                print("✅ No open positions found in database")
+                
+    except Exception as e:
+        print(f"⚠️ Error syncing position: {e}")
+
 async def get_past_trades_for_gemini(limit: int = 30) -> str:
     """Get past trades to show Gemini its performance"""
     try:
@@ -530,10 +567,10 @@ async def get_past_trades_for_gemini(limit: int = 30) -> str:
         if not trades:
             return "No previous trades available."
         
-        # Calculate performance stats
+        # Calculate performance stats with null checks
         closed_trades = [t for t in trades if t.get('status') == 'closed']
-        total_pnl = sum(float(t.get('pnl', 0)) for t in closed_trades)
-        wins = len([t for t in closed_trades if float(t.get('pnl', 0)) > 0])
+        total_pnl = sum(float(t.get('pnl') or 0) for t in closed_trades)
+        wins = len([t for t in closed_trades if float(t.get('pnl') or 0) > 0])
         win_rate = (wins / len(closed_trades) * 100) if closed_trades else 0
         
         performance_summary = f"""
@@ -546,14 +583,14 @@ RECENT TRADES:
 """
         
         for trade in reversed(trades[-10:]):  # Show last 10 trades
-            pnl = float(trade.get('pnl', 0))
+            pnl = float(trade.get('pnl') or 0)
             status = trade.get('status', 'unknown')
             direction = trade.get('direction', '').upper()
-            entry = float(trade.get('entry_price', 0))
+            entry = float(trade.get('entry_price') or 0)
             exit_price = trade.get('exit_price')
-            confidence = trade.get('confidence', 0)
+            confidence = trade.get('confidence') or 0
             
-            if status == 'closed':
+            if status == 'closed' and exit_price:
                 result = "WIN" if pnl > 0 else "LOSS"
                 performance_summary += f"#{trade.get('trade_id')}: {direction} @${entry:.0f} → ${float(exit_price):.0f} = ${pnl:.2f} ({result}) [Conf: {confidence}/10]\n"
             else:
@@ -577,6 +614,9 @@ async def main():
     if len(valid_keys) == 0:
         print("❌ No API keys found!")
         return
+    
+    # Sync position from database on startup
+    await sync_position_from_database()
     
     last_candle_time = ""
     
