@@ -292,7 +292,13 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
 def calculate_position_size(entry: float, stop_loss: float, risk_amount: float) -> float:
     """Calculate position size for risk management"""
     risk_per_unit = abs(entry - stop_loss)
-    return risk_amount / risk_per_unit if risk_per_unit > 0 else 0
+    if risk_per_unit > 0:
+        position_size = risk_amount / risk_per_unit
+        # Limit position size to reasonable amounts (max $50k notional)
+        max_notional = 50000
+        max_position = max_notional / entry
+        return min(position_size, max_position)
+    return 0
 
 async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     """Execute paper trade only when highly confident"""
@@ -302,11 +308,12 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     if signal['signal'] == 'HOLD' or signal['confidence'] < 8:
         return None
     
-    # Close opposite position only if new signal is very strong (9+)
+    # Only reverse positions with very strong signals (9+) and add logging
     if current_position and current_position.status == 'open':
         if signal['confidence'] >= 9:
             if (current_position.direction == 'long' and signal['signal'] == 'SELL') or \
                (current_position.direction == 'short' and signal['signal'] == 'BUY'):
+                print(f"🔄 Signal reversal: {current_position.direction} → {signal['signal']} (confidence: {signal['confidence']})")
                 await close_position(current_price, "Strong signal reversal")
         else:
             return None  # Don't reverse unless very confident
@@ -314,16 +321,29 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     if current_position and current_position.status == 'open':
         return None
     
-    # Calculate trade parameters
+    # Validate trade parameters
     risk_amount = demo_balance * RISK_PER_TRADE
     entry = signal.get('entry', current_price)
     stop_loss = signal.get('stop_loss', current_price * 0.98)
     take_profit = signal.get('take_profit', current_price * 1.04)
     direction = 'long' if signal['signal'] == 'BUY' else 'short'
+    
+    # Validate SL/TP logic
+    if direction == 'long' and stop_loss >= entry:
+        print(f"⚠️ Invalid LONG setup: SL ${stop_loss} should be < entry ${entry}")
+        return None
+    if direction == 'short' and stop_loss <= entry:
+        print(f"⚠️ Invalid SHORT setup: SL ${stop_loss} should be > entry ${entry}")
+        return None
+    
     position_size = calculate_position_size(entry, stop_loss, risk_amount)
     
     if position_size <= 0:
+        print(f"⚠️ Invalid position size: {position_size}")
         return None
+    
+    # Log trade setup
+    print(f"📋 Trade Setup: {direction.upper()} ${entry} | SL: ${stop_loss} | TP: ${take_profit} | Size: {position_size:.4f} BTC")
     
     # Create trade
     trade = Trade(entry, stop_loss, take_profit, position_size, direction)
@@ -370,11 +390,16 @@ async def close_position(exit_price: float, reason: str):
     if not current_position or current_position.status != 'open':
         return
     
-    # Calculate PnL
+    # Calculate PnL with validation
     if current_position.direction == 'long':
         pnl = (exit_price - current_position.entry_price) * current_position.position_size
-    else:
+    else:  # short
         pnl = (current_position.entry_price - exit_price) * current_position.position_size
+    
+    # Validate PnL calculation
+    expected_pnl = current_position.risk_amount if reason == "Stop Loss" else None
+    if reason == "Stop Loss" and abs(abs(pnl) - current_position.risk_amount) > 1:
+        print(f"⚠️ PnL mismatch: Expected ~${current_position.risk_amount}, Got ${pnl:.2f}")
     
     current_position.pnl = pnl
     current_position.exit_price = exit_price
@@ -432,14 +457,18 @@ async def check_stop_loss_take_profit(current_price: float):
     if current_position.direction == 'long':
         # LONG: SL below entry, TP above entry
         if current_price <= current_position.stop_loss:
+            print(f"🛑 LONG Stop Loss triggered: ${current_price} <= ${current_position.stop_loss}")
             await close_position(current_position.stop_loss, "Stop Loss")
         elif current_price >= current_position.take_profit:
+            print(f"🎯 LONG Take Profit triggered: ${current_price} >= ${current_position.take_profit}")
             await close_position(current_position.take_profit, "Take Profit")
     else:  # short
         # SHORT: SL above entry, TP below entry  
         if current_price >= current_position.stop_loss:
+            print(f"🛑 SHORT Stop Loss triggered: ${current_price} >= ${current_position.stop_loss}")
             await close_position(current_position.stop_loss, "Stop Loss")
         elif current_price <= current_position.take_profit:
+            print(f"🎯 SHORT Take Profit triggered: ${current_price} <= ${current_position.take_profit}")
             await close_position(current_position.take_profit, "Take Profit")
 
 async def print_stats():
