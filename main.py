@@ -231,8 +231,8 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
                 "response_schema": {
                     "type": "object",
                     "properties": {
-                        "signal": {"type": "string", "enum": ["BUY", "SELL", "HOLD"]},
-                        "confidence": {"type": "integer", "minimum": 1, "maximum": 10},
+                        "signal": {"type": "string"},
+                        "confidence": {"type": "integer"},
                         "entry": {"type": "number"},
                         "stop_loss": {"type": "number"},
                         "take_profit": {"type": "number"},
