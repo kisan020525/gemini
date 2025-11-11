@@ -16,8 +16,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configuration
-SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_URL = os.getenv("SUPABASE_URL")  # For candles (read-only)
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+# Separate Supabase for trades
+TRADES_SUPABASE_URL = os.getenv("TRADES_SUPABASE_URL")
+TRADES_SUPABASE_KEY = os.getenv("TRADES_SUPABASE_KEY")
 
 # 6 Gemini API Keys for rotation (250 RPD each = 1500 total)
 GEMINI_API_KEYS = [
@@ -37,8 +41,9 @@ ANALYSIS_INTERVAL = 3600  # 1 hour intervals for free tier safety
 # IST timezone
 IST = timezone(timedelta(hours=5, minutes=30))
 
-# Initialize Supabase
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Initialize Supabase connections
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)  # For candles
+trades_supabase = create_client(TRADES_SUPABASE_URL, TRADES_SUPABASE_KEY) if TRADES_SUPABASE_URL else None
 
 # API Key rotation with daily limits
 current_api_key_index = 0
@@ -275,7 +280,7 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     current_position = trade
     total_trades += 1
     
-    # Save to local file (no database mixing)
+    # Save to separate trades database
     trade_data = {
         "trade_id": total_trades,
         "timestamp": trade.entry_time.isoformat(),
@@ -290,11 +295,19 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
         "status": "open"
     }
     
-    if save_trade_locally(trade_data):
-        print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
+    if trades_supabase:
+        try:
+            trades_supabase.table("paper_trades").insert(trade_data).execute()
+            print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
+        except Exception as e:
+            print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
+            print(f"⚠️ Trades DB error: {str(e)[:50]}")
     else:
-        print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
-        print(f"⚠️ Local save failed")
+        # Fallback to local storage
+        if save_trade_locally(trade_data):
+            print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
+        else:
+            print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
     
     return trade
 
@@ -320,20 +333,32 @@ async def close_position(exit_price: float, reason: str):
     if pnl > 0:
         winning_trades += 1
     
-    # Update local file (no database mixing)
-    update_data = {
-        "exit_price": exit_price,
-        "exit_time": current_position.exit_time.isoformat(),
-        "pnl": pnl,
-        "status": "closed",
-        "close_reason": reason
-    }
-    
-    if update_trade_locally(total_trades, update_data):
-        print(f"📊 CLOSED #{total_trades}: ${exit_price:.0f} | PnL: ${pnl:.2f} | {reason}")
+    # Update separate trades database
+    if trades_supabase:
+        try:
+            trades_supabase.table("paper_trades").update({
+                "exit_price": exit_price,
+                "exit_time": current_position.exit_time.isoformat(),
+                "pnl": pnl,
+                "status": "closed",
+                "close_reason": reason
+            }).eq("trade_id", total_trades).execute()
+            
+            print(f"📊 CLOSED #{total_trades}: ${exit_price:.0f} | PnL: ${pnl:.2f} | {reason}")
+        except Exception as e:
+            print(f"📊 CLOSED #{total_trades}: ${exit_price:.0f} | PnL: ${pnl:.2f} | {reason}")
+            print(f"⚠️ Trades DB update error: {str(e)[:50]}")
     else:
+        # Fallback to local storage
+        update_data = {
+            "exit_price": exit_price,
+            "exit_time": current_position.exit_time.isoformat(),
+            "pnl": pnl,
+            "status": "closed",
+            "close_reason": reason
+        }
+        update_trade_locally(total_trades, update_data)
         print(f"📊 CLOSED #{total_trades}: ${exit_price:.0f} | PnL: ${pnl:.2f} | {reason}")
-        print(f"⚠️ Local update failed")
     
     current_position = None
 
