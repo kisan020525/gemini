@@ -529,7 +529,7 @@ async def close_position(exit_price: float, reason: str):
     current_position = None
 
 async def check_stop_loss_take_profit(current_candle: Dict):
-    """Check SL/TP levels using candle high/low data"""
+    """Use Gemini 2.5 Lite to make trade management decisions"""
     if not current_position or current_position.status != 'open':
         return
     
@@ -537,31 +537,56 @@ async def check_stop_loss_take_profit(current_candle: Dict):
     candle_high = float(current_candle.get('high', 0))
     candle_low = float(current_candle.get('low', 0))
     
-    print(f"🔍 Checking SL/TP: {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
+    print(f"🔍 Trade Management Check: {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
     print(f"📊 Candle: H:${candle_high:.0f} L:${candle_low:.0f} C:${current_price:.0f} | SL:${current_position.stop_loss:.0f} TP:${current_position.take_profit:.0f}")
     
-    if current_position.direction == 'long':
-        # LONG: Check if candle low hit stop loss OR candle high hit take profit
-        if candle_low <= current_position.stop_loss:
-            print(f"🛑 LONG Stop Loss HIT: Candle low ${candle_low:.0f} <= SL ${current_position.stop_loss:.0f}")
-            await close_position(current_position.stop_loss, "Stop Loss")
-            return
-        elif candle_high >= current_position.take_profit:
-            print(f"🎯 LONG Take Profit HIT: Candle high ${candle_high:.0f} >= TP ${current_position.take_profit:.0f}")
-            await close_position(current_position.take_profit, "Take Profit")
-            return
-    else:  # short
-        # SHORT: Check if candle high hit stop loss OR candle low hit take profit
-        if candle_high >= current_position.stop_loss:
-            print(f"🛑 SHORT Stop Loss HIT: Candle high ${candle_high:.0f} >= SL ${current_position.stop_loss:.0f}")
-            await close_position(current_position.stop_loss, "Stop Loss")
-            return
-        elif candle_low <= current_position.take_profit:
-            print(f"🎯 SHORT Take Profit HIT: Candle low ${candle_low:.0f} <= TP ${current_position.take_profit:.0f}")
-            await close_position(current_position.take_profit, "Take Profit")
-            return
+    # Prepare position data for Lite model
+    position_data = {
+        'direction': current_position.direction,
+        'entry_price': current_position.entry_price,
+        'stop_loss': current_position.stop_loss,
+        'take_profit': current_position.take_profit,
+        'capital': demo_balance,
+        'candle_high': candle_high,
+        'candle_low': candle_low,
+        'current_price': current_price
+    }
     
-    print(f"✅ Position safe: SL/TP not hit this candle")
+    # Get AI decision from Gemini 2.5 Lite
+    decision = await get_trade_management_decision(current_price, position_data)
+    
+    print(f"🤖 Lite AI Decision: {decision.get('action')} | Urgency: {decision.get('urgency')}/10")
+    print(f"💭 Reasoning: {decision.get('reasoning', 'N/A')[:60]}...")
+    
+    # Execute AI decision
+    if decision.get('action') == 'CLOSE':
+        # Determine close price based on SL/TP logic
+        if current_position.direction == 'long':
+            if candle_low <= current_position.stop_loss:
+                close_price = current_position.stop_loss
+                reason = "AI Stop Loss"
+            elif candle_high >= current_position.take_profit:
+                close_price = current_position.take_profit
+                reason = "AI Take Profit"
+            else:
+                close_price = current_price
+                reason = "AI Market Close"
+        else:  # short
+            if candle_high >= current_position.stop_loss:
+                close_price = current_position.stop_loss
+                reason = "AI Stop Loss"
+            elif candle_low <= current_position.take_profit:
+                close_price = current_position.take_profit
+                reason = "AI Take Profit"
+            else:
+                close_price = current_price
+                reason = "AI Market Close"
+        
+        print(f"🚨 AI CLOSING POSITION: {reason} at ${close_price:.0f}")
+        await close_position(close_price, reason)
+        return
+    
+    print(f"✅ AI Decision: Hold position")
 
 async def print_stats():
     """Print trading statistics"""
