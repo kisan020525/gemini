@@ -117,24 +117,29 @@ async def fetch_latest_candles(limit: int = 6000) -> List[Dict]:
         return []
 
 def format_candles_for_gemini(candles: List[Dict]) -> str:
-    """Format last 50 candles for Gemini (reduced for faster processing)"""
+    """Format all 6k candles for comprehensive analysis"""
     if not candles:
         return "No candle data available"
     
-    recent_candles = candles[-50:]  # Reduced to 50 for faster API calls
-    formatted_data = "Bitcoin BTCUSDT - Last 50 Minutes:\n"
-    formatted_data += "Time | OHLC | Volume\n"
-    formatted_data += "-" * 40 + "\n"
+    # Use all available candles (up to 6000)
+    formatted_data = f"Bitcoin BTCUSDT - {len(candles)} minute candles:\n"
+    formatted_data += "Recent 100 candles (Time|OHLC|Vol):\n"
     
-    for candle in recent_candles:
-        ts = candle.get('timestamp', '')[-8:-3]  # Just time part
-        o = candle.get('open', 0)
-        h = candle.get('high', 0) 
-        l = candle.get('low', 0)
-        c = candle.get('close', 0)
+    # Show last 100 for detailed view
+    recent = candles[-100:]
+    for candle in recent:
+        ts = candle.get('timestamp', '')[-8:-3]
+        o, h, l, c = candle.get('open', 0), candle.get('high', 0), candle.get('low', 0), candle.get('close', 0)
         v = candle.get('volume', 0)
-        
-        formatted_data += f"{ts} | {o:.0f}/{h:.0f}/{l:.0f}/{c:.0f} | {v:.2f}\n"
+        formatted_data += f"{ts}|{o:.0f}/{h:.0f}/{l:.0f}/{c:.0f}|{v:.1f}\n"
+    
+    # Add statistical summary of all candles
+    closes = [float(c.get('close', 0)) for c in candles if c.get('close')]
+    if closes:
+        current = closes[-1]
+        high_24h = max(closes[-1440:]) if len(closes) >= 1440 else max(closes)
+        low_24h = min(closes[-1440:]) if len(closes) >= 1440 else min(closes)
+        formatted_data += f"\nCurrent: ${current:.0f} | 24h High: ${high_24h:.0f} | 24h Low: ${low_24h:.0f}"
     
     return formatted_data
 
@@ -151,12 +156,14 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-1.5-flash')  # Use stable model
         
-        # Minimal prompt to reduce token usage
+        # Enhanced prompt for 6k candle analysis
         prompt = f"""
-        Bitcoin: ${current_price:.0f}
+        Analyze {len(candles_data.split('\n'))} Bitcoin candles. Current: ${current_price:.0f}
         
-        Trend analysis. Respond only:
-        {{"signal": "HOLD", "confidence": 5}}
+        {candles_data}
+        
+        Based on ALL candle data, provide trading signal:
+        {{"signal": "BUY/SELL/HOLD", "confidence": 1-10, "entry": {current_price}, "stop_loss": price, "take_profit": price, "reasoning": "brief analysis"}}
         """
         
         response = model.generate_content(prompt)
@@ -331,49 +338,70 @@ async def print_stats():
     total_daily_usage = sum(api_key_daily_count)
     print(f"📈 Balance: ${demo_balance:.0f} | Return: {total_return:.1f}% | Trades: {total_trades} | Win: {win_rate:.0f}% | API: {total_daily_usage}/60")
 
+async def wait_for_new_candle(last_candle_time: str) -> bool:
+    """Wait for new candle to be added to Supabase"""
+    while True:
+        try:
+            response = supabase.table("candles").select("timestamp").order("timestamp", desc=True).limit(1).execute()
+            if response.data and response.data[0]['timestamp'] != last_candle_time:
+                return True
+            await asyncio.sleep(10)  # Check every 10 seconds
+        except:
+            await asyncio.sleep(30)
+
 async def main():
-    """Main trading loop with 6 API keys"""
-    print("🤖 Gemini Trading Bot - Ultra Conservative")
+    """Main trading loop triggered by new candles"""
+    print("🤖 Gemini Trading Bot - 6K Candle Analysis")
     print(f"💰 Demo Capital: ${DEMO_CAPITAL}")
-    print("⏳ Hourly analysis (free tier safe)")
+    print("🕐 Triggered by new candle updates")
     
-    # Validate API keys
     valid_keys = [key for key in GEMINI_API_KEYS if key]
     print(f"🔑 API Keys loaded: {len(valid_keys)}/6")
-    print("📊 Max 10 calls per day per key = 60 total daily calls")
     
     if len(valid_keys) == 0:
-        print("❌ No API keys found! Add GEMINI_API_KEY_1 to GEMINI_API_KEY_6")
+        print("❌ No API keys found!")
         return
+    
+    last_candle_time = ""
     
     while True:
         try:
-            # Get candles
+            # Get all 6k candles
             candles = await fetch_latest_candles(6000)
             if not candles:
                 print("⏳ Waiting for candle data...")
                 await asyncio.sleep(60)
                 continue
             
+            current_candle_time = candles[-1].get('timestamp', '')
             current_price = float(candles[-1].get('close', 0))
+            
             if current_price <= 0:
-                await asyncio.sleep(60)
+                await asyncio.sleep(30)
                 continue
             
-            # Check position management
-            await check_stop_loss_take_profit(current_price)
+            # Only analyze when new candle arrives
+            if current_candle_time != last_candle_time:
+                print(f"🕐 New candle detected: {current_candle_time[-8:-3]}")
+                
+                # Check position management first
+                await check_stop_loss_take_profit(current_price)
+                
+                # Analyze with full 6k dataset
+                candles_data = format_candles_for_gemini(candles)
+                signal = await get_gemini_signal(candles_data, current_price)
+                
+                print(f"🧠 Gemini: {signal.get('signal')} | Confidence: {signal.get('confidence')}/10")
+                print(f"💡 Reasoning: {signal.get('reasoning', 'N/A')[:50]}")
+                
+                # Execute trade if signal is strong
+                await execute_trade(signal, current_price)
+                await print_stats()
+                
+                last_candle_time = current_candle_time
             
-            # Get Gemini analysis with API rotation
-            candles_data = format_candles_for_gemini(candles)
-            signal = await get_gemini_signal(candles_data, current_price)
-            
-            print(f"🧠 Gemini: {signal.get('signal')} | Confidence: {signal.get('confidence')}/10")
-            
-            # Execute trade
-            await execute_trade(signal, current_price)
-            await print_stats()
-            
-            await asyncio.sleep(ANALYSIS_INTERVAL)  # 1 minute
+            # Wait for next candle update
+            await wait_for_new_candle(current_candle_time)
             
         except Exception as e:
             print(f"❌ Error: {e}")
