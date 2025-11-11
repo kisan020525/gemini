@@ -275,7 +275,7 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     current_position = trade
     total_trades += 1
     
-    # Save to database (with error handling)
+    # Save to local file (no database mixing)
     trade_data = {
         "trade_id": total_trades,
         "timestamp": trade.entry_time.isoformat(),
@@ -290,12 +290,11 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
         "status": "open"
     }
     
-    try:
-        supabase.table("paper_trades").insert(trade_data).execute()
+    if save_trade_locally(trade_data):
         print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
-    except Exception as e:
+    else:
         print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
-        print(f"⚠️ DB save failed: {str(e)[:50]}")
+        print(f"⚠️ Local save failed")
     
     return trade
 
@@ -321,20 +320,20 @@ async def close_position(exit_price: float, reason: str):
     if pnl > 0:
         winning_trades += 1
     
-    # Update database (with error handling)
-    try:
-        supabase.table("paper_trades").update({
-            "exit_price": exit_price,
-            "exit_time": current_position.exit_time.isoformat(),
-            "pnl": pnl,
-            "status": "closed",
-            "close_reason": reason
-        }).eq("trade_id", total_trades).execute()
-        
+    # Update local file (no database mixing)
+    update_data = {
+        "exit_price": exit_price,
+        "exit_time": current_position.exit_time.isoformat(),
+        "pnl": pnl,
+        "status": "closed",
+        "close_reason": reason
+    }
+    
+    if update_trade_locally(total_trades, update_data):
         print(f"📊 CLOSED #{total_trades}: ${exit_price:.0f} | PnL: ${pnl:.2f} | {reason}")
-    except Exception as e:
+    else:
         print(f"📊 CLOSED #{total_trades}: ${exit_price:.0f} | PnL: ${pnl:.2f} | {reason}")
-        print(f"⚠️ DB update failed: {str(e)[:50]}")
+        print(f"⚠️ Local update failed")
     
     current_position = None
 
@@ -374,31 +373,51 @@ async def wait_for_new_candle(last_candle_time: str) -> bool:
         except:
             await asyncio.sleep(30)
 
-async def create_trades_table():
-    """Create paper_trades table if it doesn't exist"""
+import json
+
+# Local trade storage
+TRADES_FILE = "trades.json"
+
+def save_trade_locally(trade_data):
+    """Save trade to local JSON file"""
     try:
-        # Create table via SQL
-        supabase.postgrest.rpc('create_paper_trades_table').execute()
-    except:
-        # Fallback: try to insert a dummy record to trigger table creation
+        # Load existing trades
         try:
-            supabase.table("paper_trades").insert({
-                "trade_id": 0,
-                "timestamp": datetime.now(IST).isoformat(),
-                "direction": "test",
-                "entry_price": 0,
-                "stop_loss": 0,
-                "take_profit": 0,
-                "position_size": 0,
-                "risk_amount": 0,
-                "confidence": 0,
-                "reasoning": "table creation",
-                "status": "test"
-            }).execute()
-            # Delete the test record
-            supabase.table("paper_trades").delete().eq("trade_id", 0).execute()
+            with open(TRADES_FILE, 'r') as f:
+                trades = json.load(f)
         except:
-            pass
+            trades = []
+        
+        # Add new trade
+        trades.append(trade_data)
+        
+        # Save back
+        with open(TRADES_FILE, 'w') as f:
+            json.dump(trades, f)
+        
+        return True
+    except:
+        return False
+
+def update_trade_locally(trade_id, update_data):
+    """Update trade in local JSON file"""
+    try:
+        with open(TRADES_FILE, 'r') as f:
+            trades = json.load(f)
+        
+        # Find and update trade
+        for trade in trades:
+            if trade.get('trade_id') == trade_id:
+                trade.update(update_data)
+                break
+        
+        # Save back
+        with open(TRADES_FILE, 'w') as f:
+            json.dump(trades, f)
+        
+        return True
+    except:
+        return False
 
 async def main():
     """Main trading loop triggered by new candles"""
@@ -412,9 +431,6 @@ async def main():
     if len(valid_keys) == 0:
         print("❌ No API keys found!")
         return
-    
-    # Create trades table
-    await create_trades_table()
     
     last_candle_time = ""
     

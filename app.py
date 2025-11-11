@@ -17,8 +17,9 @@ def dashboard():
 @app.route('/api/trades')
 def get_trades():
     try:
-        response = supabase.table("paper_trades").select("*").order("timestamp", desc=True).limit(10).execute()
-        return jsonify(response.data)
+        with open('trades.json', 'r') as f:
+            trades = json.load(f)
+        return jsonify(trades[-10:])  # Last 10 trades
     except:
         return jsonify([])
 
@@ -33,13 +34,17 @@ def get_candles():
 @app.route('/api/status')
 def get_status():
     try:
-        # Get latest candle
+        # Get latest candle (only read from candles table)
         candles = supabase.table("candles").select("*").order("timestamp", desc=True).limit(1).execute()
         current_price = float(candles.data[0]['close']) if candles.data else 0
         
-        # Get latest trade
-        trades = supabase.table("paper_trades").select("*").order("timestamp", desc=True).limit(1).execute()
-        latest_trade = trades.data[0] if trades.data else None
+        # Get latest trade from local file
+        try:
+            with open('trades.json', 'r') as f:
+                trades = json.load(f)
+            latest_trade = trades[-1] if trades else None
+        except:
+            latest_trade = None
         
         return jsonify({
             "current_price": current_price,
