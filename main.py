@@ -45,6 +45,7 @@ current_api_key_index = 0
 api_key_last_used = [0] * 6   # Track last usage time
 api_key_daily_count = [0] * 6  # Track daily usage
 api_key_daily_reset = [0] * 6  # Track daily reset time
+api_key_usage_count = [0] * 6  # Legacy compatibility
 
 # Trading state
 current_position = None
@@ -327,8 +328,8 @@ async def print_stats():
     total_return = ((demo_balance - DEMO_CAPITAL) / DEMO_CAPITAL * 100)
     
     # Show API key usage
-    total_usage = sum(api_key_usage_count)
-    print(f"📈 Balance: ${demo_balance:.0f} | Return: {total_return:.1f}% | Trades: {total_trades} | Win: {win_rate:.0f}% | API: {total_usage}/1500")
+    total_daily_usage = sum(api_key_daily_count)
+    print(f"📈 Balance: ${demo_balance:.0f} | Return: {total_return:.1f}% | Trades: {total_trades} | Win: {win_rate:.0f}% | API: {total_daily_usage}/60")
 
 async def main():
     """Main trading loop with 6 API keys"""
