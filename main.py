@@ -425,20 +425,24 @@ async def close_position(exit_price: float, reason: str):
     current_position = None
 
 async def check_stop_loss_take_profit(current_price: float):
-    """Check SL/TP levels"""
+    """Check SL/TP levels with proper exit prices"""
     if not current_position or current_position.status != 'open':
         return
     
     if current_position.direction == 'long':
         if current_price <= current_position.stop_loss:
-            await close_position(current_price, "Stop Loss")
+            # Close at stop loss price, not current market price
+            await close_position(current_position.stop_loss, "Stop Loss")
         elif current_price >= current_position.take_profit:
-            await close_position(current_price, "Take Profit")
+            # Close at take profit price
+            await close_position(current_position.take_profit, "Take Profit")
     else:  # short
         if current_price >= current_position.stop_loss:
-            await close_position(current_price, "Stop Loss")
+            # Close at stop loss price, not current market price
+            await close_position(current_position.stop_loss, "Stop Loss")
         elif current_price <= current_position.take_profit:
-            await close_position(current_price, "Take Profit")
+            # Close at take profit price
+            await close_position(current_position.take_profit, "Take Profit")
 
 async def print_stats():
     """Print trading statistics"""
