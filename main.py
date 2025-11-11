@@ -1,6 +1,6 @@
 """
-Gemini 2.5 Flash Trading Bot - Standalone Version
-Separate server for AI trading analysis and paper trading
+Gemini 2.5 Flash Trading Bot - Multi-API Key Version
+6 API keys rotation for 1500 RPD (250 x 6) = Every minute analysis
 """
 
 import os
@@ -17,20 +17,33 @@ load_dotenv()
 
 # Configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY") 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+# 6 Gemini API Keys for rotation (250 RPD each = 1500 total)
+GEMINI_API_KEYS = [
+    os.getenv("GEMINI_API_KEY_1"),
+    os.getenv("GEMINI_API_KEY_2"), 
+    os.getenv("GEMINI_API_KEY_3"),
+    os.getenv("GEMINI_API_KEY_4"),
+    os.getenv("GEMINI_API_KEY_5"),
+    os.getenv("GEMINI_API_KEY_6")
+]
 
 # Trading Configuration
 DEMO_CAPITAL = 10000.0
 RISK_PER_TRADE = 0.02
-ANALYSIS_INTERVAL = 300  # 5 minutes
+ANALYSIS_INTERVAL = 60  # Every 1 minute with 6 API keys!
 
 # IST timezone
 IST = timezone(timedelta(hours=5, minutes=30))
 
-# Initialize clients
+# Initialize Supabase
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-genai.configure(api_key=GEMINI_API_KEY)
+
+# API Key rotation
+current_api_key_index = 0
+api_key_usage_count = [0] * 6  # Track usage per key
+api_key_reset_time = [0] * 6   # Track reset times
 
 # Trading state
 current_position = None
@@ -52,6 +65,35 @@ class Trade:
         self.pnl = 0.0
         self.status = 'open'
 
+def get_next_api_key() -> str:
+    """Get next available API key with rate limit management"""
+    global current_api_key_index, api_key_usage_count, api_key_reset_time
+    
+    current_time = time.time()
+    
+    # Check if current key needs reset (every hour)
+    for i in range(6):
+        if current_time - api_key_reset_time[i] > 3600:  # 1 hour
+            api_key_usage_count[i] = 0
+            api_key_reset_time[i] = current_time
+    
+    # Find available API key (under 240 requests to be safe)
+    for attempt in range(6):
+        key_index = (current_api_key_index + attempt) % 6
+        
+        if api_key_usage_count[key_index] < 240:  # Leave buffer
+            current_api_key_index = key_index
+            api_key_usage_count[key_index] += 1
+            
+            api_key = GEMINI_API_KEYS[key_index]
+            if api_key:
+                print(f"🔑 Using API Key #{key_index + 1} (Usage: {api_key_usage_count[key_index]}/250)")
+                return api_key
+    
+    # All keys exhausted, use first one and wait
+    print("⚠️  All API keys near limit, using key #1 with delay")
+    return GEMINI_API_KEYS[0] if GEMINI_API_KEYS[0] else ""
+
 async def fetch_latest_candles(limit: int = 6000) -> List[Dict]:
     """Fetch candles from candle collector server via Supabase"""
     try:
@@ -62,60 +104,62 @@ async def fetch_latest_candles(limit: int = 6000) -> List[Dict]:
         return []
 
 def format_candles_for_gemini(candles: List[Dict]) -> str:
-    """Format last 100 candles for Gemini analysis"""
+    """Format last 50 candles for Gemini (reduced for faster processing)"""
     if not candles:
         return "No candle data available"
     
-    recent_candles = candles[-100:]
-    formatted_data = "Bitcoin BTCUSDT - Last 100 Minutes (IST):\n"
-    formatted_data += "Time | Open | High | Low | Close | Volume | Trades\n"
-    formatted_data += "-" * 70 + "\n"
+    recent_candles = candles[-50:]  # Reduced to 50 for faster API calls
+    formatted_data = "Bitcoin BTCUSDT - Last 50 Minutes:\n"
+    formatted_data += "Time | OHLC | Volume\n"
+    formatted_data += "-" * 40 + "\n"
     
     for candle in recent_candles:
-        ts = candle.get('timestamp', '')
+        ts = candle.get('timestamp', '')[-8:-3]  # Just time part
         o = candle.get('open', 0)
         h = candle.get('high', 0) 
         l = candle.get('low', 0)
         c = candle.get('close', 0)
         v = candle.get('volume', 0)
-        t = candle.get('trades', 0)
         
-        formatted_data += f"{ts} | {o:.2f} | {h:.2f} | {l:.2f} | {c:.2f} | {v:.4f} | {t}\n"
+        formatted_data += f"{ts} | {o:.0f}/{h:.0f}/{l:.0f}/{c:.0f} | {v:.2f}\n"
     
     return formatted_data
 
 async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
-    """Get trading signal from Gemini 2.5 Flash"""
+    """Get trading signal using API key rotation"""
     try:
+        # Get next available API key
+        api_key = get_next_api_key()
+        if not api_key:
+            return {"signal": "HOLD", "confidence": 0, "reasoning": "No API key available"}
+        
+        # Configure Gemini with current API key
+        genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.0-flash-exp')
         
+        # Shorter, more efficient prompt
         prompt = f"""
-        Analyze this Bitcoin market data and provide trading recommendation:
+        Bitcoin Analysis - Current: ${current_price:.0f}
 
         {candles_data}
 
-        Current Price: ${current_price:.2f}
-
-        Provide analysis in JSON format:
+        Quick trading decision in JSON:
         {{
             "signal": "BUY/SELL/HOLD",
-            "entry": {current_price:.2f},
-            "stop_loss": {current_price * 0.98:.2f},
-            "take_profit": {current_price * 1.04:.2f},
+            "entry": {current_price:.0f},
+            "stop_loss": {current_price * 0.98:.0f},
+            "take_profit": {current_price * 1.04:.0f},
             "confidence": 7,
-            "reasoning": "Technical analysis summary"
+            "reasoning": "Brief analysis"
         }}
 
-        Requirements:
-        - Minimum 1:2 risk/reward ratio
-        - Confidence 1-10 (only trade if 6+)
-        - Consider support/resistance, patterns, volume
+        Rules: Min 6 confidence to trade, 1:2 risk/reward
         """
         
         response = model.generate_content(prompt)
         response_text = response.text.strip()
         
-        # Clean JSON response
+        # Clean JSON
         if '```json' in response_text:
             response_text = response_text.split('```json')[1].split('```')[0]
         elif '```' in response_text:
@@ -124,7 +168,14 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         return json.loads(response_text)
         
     except Exception as e:
-        print(f"❌ Gemini error: {e}")
+        error_msg = str(e)
+        if "429" in error_msg or "quota" in error_msg.lower():
+            print(f"🚫 Rate limit hit on API key #{current_api_key_index + 1}")
+            # Mark this key as exhausted
+            api_key_usage_count[current_api_key_index] = 250
+        else:
+            print(f"❌ Gemini error: {e}")
+        
         return {"signal": "HOLD", "confidence": 0, "reasoning": f"Error: {e}"}
 
 def calculate_position_size(entry: float, stop_loss: float, risk_amount: float) -> float:
@@ -181,7 +232,7 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     
     try:
         supabase.table("paper_trades").insert(trade_data).execute()
-        print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.2f} | SL: ${stop_loss:.2f} | TP: ${take_profit:.2f}")
+        print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
     except Exception as e:
         print(f"❌ Save error: {e}")
     
@@ -219,7 +270,7 @@ async def close_position(exit_price: float, reason: str):
             "close_reason": reason
         }).eq("trade_id", total_trades).execute()
         
-        print(f"📊 CLOSED #{total_trades}: ${exit_price:.2f} | PnL: ${pnl:.2f} | {reason}")
+        print(f"📊 CLOSED #{total_trades}: ${exit_price:.0f} | PnL: ${pnl:.2f} | {reason}")
     except Exception as e:
         print(f"❌ Update error: {e}")
     
@@ -246,17 +297,27 @@ async def print_stats():
     win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
     total_return = ((demo_balance - DEMO_CAPITAL) / DEMO_CAPITAL * 100)
     
-    print(f"\n📈 STATS: Balance: ${demo_balance:.2f} | Return: {total_return:.1f}% | Trades: {total_trades} | Win Rate: {win_rate:.1f}%")
+    # Show API key usage
+    total_usage = sum(api_key_usage_count)
+    print(f"📈 Balance: ${demo_balance:.0f} | Return: {total_return:.1f}% | Trades: {total_trades} | Win: {win_rate:.0f}% | API: {total_usage}/1500")
 
 async def main():
-    """Main trading loop"""
-    print("🤖 Gemini Trading Bot - Separate Server")
+    """Main trading loop with 6 API keys"""
+    print("🤖 Gemini Trading Bot - 6 API Keys (1500 RPD)")
     print(f"💰 Demo Capital: ${DEMO_CAPITAL}")
-    print("🔗 Connected to candle collector via Supabase")
+    print("⚡ Every minute analysis enabled!")
+    
+    # Validate API keys
+    valid_keys = [key for key in GEMINI_API_KEYS if key]
+    print(f"🔑 API Keys loaded: {len(valid_keys)}/6")
+    
+    if len(valid_keys) == 0:
+        print("❌ No API keys found! Add GEMINI_API_KEY_1 to GEMINI_API_KEY_6")
+        return
     
     while True:
         try:
-            # Get candles from collector server
+            # Get candles
             candles = await fetch_latest_candles(6000)
             if not candles:
                 print("⏳ Waiting for candle data...")
@@ -271,7 +332,7 @@ async def main():
             # Check position management
             await check_stop_loss_take_profit(current_price)
             
-            # Get Gemini analysis
+            # Get Gemini analysis with API rotation
             candles_data = format_candles_for_gemini(candles)
             signal = await get_gemini_signal(candles_data, current_price)
             
@@ -281,7 +342,7 @@ async def main():
             await execute_trade(signal, current_price)
             await print_stats()
             
-            await asyncio.sleep(ANALYSIS_INTERVAL)
+            await asyncio.sleep(ANALYSIS_INTERVAL)  # 1 minute
             
         except Exception as e:
             print(f"❌ Error: {e}")
