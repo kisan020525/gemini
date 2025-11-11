@@ -174,24 +174,17 @@ async def fetch_latest_candles(limit: int = 6000) -> List[Dict]:
         return []
 
 def format_candles_for_gemini(candles: List[Dict]) -> str:
-    """Format comprehensive candle data for AI analysis"""
+    """Format ALL candles for comprehensive analysis - use full 1M token limit"""
     if not candles:
         return "No candle data available"
     
-    formatted_data = f"Bitcoin BTCUSDT - {len(candles)} minute candles for analysis:\n\n"
+    formatted_data = f"Bitcoin BTCUSDT - COMPLETE DATASET ({len(candles)} minute candles):\n\n"
     
-    # Use ALL candles if under 1000, otherwise use last 1000
-    if len(candles) <= 1000:
-        analysis_candles = candles  # Use all available
-        formatted_data += f"COMPLETE DATASET ({len(analysis_candles)} candles):\n"
-    else:
-        analysis_candles = candles[-1000:]  # Use last 1000
-        formatted_data += f"RECENT DATA ({len(analysis_candles)} of {len(candles)} candles):\n"
+    # Send ALL candles - we have 1M+ token limit!
+    formatted_data += "FULL CANDLE DATA (Time|Open|High|Low|Close|Volume):\n"
     
-    formatted_data += "Time|Open|High|Low|Close|Volume\n"
-    
-    # Send actual candle data
-    for candle in analysis_candles:
+    # Send every single candle
+    for candle in candles:
         ts = candle.get('timestamp', '')[-8:-3]
         o = float(candle.get('open', 0))
         h = float(candle.get('high', 0))
@@ -200,18 +193,23 @@ def format_candles_for_gemini(candles: List[Dict]) -> str:
         v = float(candle.get('volume', 0))
         formatted_data += f"{ts}|{o:.0f}|{h:.0f}|{l:.0f}|{c:.0f}|{v:.1f}\n"
     
-    # Add market context
+    # Add comprehensive market context
     all_closes = [float(c.get('close', 0)) for c in candles if c.get('close')]
     if all_closes:
         current = all_closes[-1]
         high_period = max(all_closes)
         low_period = min(all_closes)
+        avg_volume = sum(float(c.get('volume', 0)) for c in candles) / len(candles)
         
-        formatted_data += f"\nMARKET CONTEXT:\n"
-        formatted_data += f"Current: ${current:.0f}\n"
+        formatted_data += f"\nCOMPREHENSIVE MARKET CONTEXT:\n"
+        formatted_data += f"Current Price: ${current:.0f}\n"
         formatted_data += f"Period High: ${high_period:.0f}\n" 
         formatted_data += f"Period Low: ${low_period:.0f}\n"
-        formatted_data += f"Dataset: {len(candles)} total candles, {len(analysis_candles)} analyzed\n"
+        formatted_data += f"Average Volume: {avg_volume:.2f}\n"
+        formatted_data += f"Total Candles Analyzed: {len(candles)}\n"
+        formatted_data += f"Price Range: ${high_period - low_period:.0f}\n"
+        formatted_data += f"Current vs High: {((current - high_period) / high_period * 100):.2f}%\n"
+        formatted_data += f"Current vs Low: {((current - low_period) / low_period * 100):.2f}%\n"
     
     return formatted_data
 
@@ -224,9 +222,27 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
             print("🚫 No API keys available, skipping analysis")
             return {"signal": "HOLD", "confidence": 0, "reasoning": "No API keys available"}
         
-        # Configure Gemini with current API key
+        # Configure Gemini 2.5 Flash with structured output
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-flash-preview-09-2025')
+        model = genai.GenerativeModel(
+            'gemini-2.5-flash-preview-09-2025',
+            generation_config={
+                "response_mime_type": "application/json",
+                "response_schema": {
+                    "type": "object",
+                    "properties": {
+                        "signal": {"type": "string", "enum": ["BUY", "SELL", "HOLD"]},
+                        "confidence": {"type": "integer", "minimum": 1, "maximum": 10},
+                        "entry": {"type": "number"},
+                        "stop_loss": {"type": "number"},
+                        "take_profit": {"type": "number"},
+                        "analysis": {"type": "string"},
+                        "reasoning": {"type": "string"}
+                    },
+                    "required": ["signal", "confidence", "entry", "stop_loss", "take_profit", "analysis", "reasoning"]
+                }
+            }
+        )
         
         # Unleash full AI analytical power with PAST PERFORMANCE
         prompt = f"""
