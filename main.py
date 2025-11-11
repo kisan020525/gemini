@@ -295,17 +295,21 @@ def calculate_position_size(entry: float, stop_loss: float, risk_amount: float) 
     return risk_amount / risk_per_unit if risk_per_unit > 0 else 0
 
 async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
-    """Execute paper trade"""
+    """Execute paper trade only when highly confident"""
     global current_position, demo_balance, total_trades
     
-    if signal['signal'] == 'HOLD' or signal['confidence'] < 6:
+    # Only trade with high confidence (8+ out of 10)
+    if signal['signal'] == 'HOLD' or signal['confidence'] < 8:
         return None
     
-    # Close opposite position
+    # Close opposite position only if new signal is very strong (9+)
     if current_position and current_position.status == 'open':
-        if (current_position.direction == 'long' and signal['signal'] == 'SELL') or \
-           (current_position.direction == 'short' and signal['signal'] == 'BUY'):
-            await close_position(current_price, "Signal reversal")
+        if signal['confidence'] >= 9:
+            if (current_position.direction == 'long' and signal['signal'] == 'SELL') or \
+               (current_position.direction == 'short' and signal['signal'] == 'BUY'):
+                await close_position(current_price, "Strong signal reversal")
+        else:
+            return None  # Don't reverse unless very confident
     
     if current_position and current_position.status == 'open':
         return None
@@ -348,13 +352,14 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
             print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
         except Exception as e:
             print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
-            print(f"⚠️ Trades DB error: {str(e)[:50]}")
+            print(f"⚠️ Trades DB error: {str(e)}")
+            # Fallback to local storage
+            save_trade_locally(trade_data)
     else:
         # Fallback to local storage
-        if save_trade_locally(trade_data):
-            print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
-        else:
-            print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
+        save_trade_locally(trade_data)
+        print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
+        print("⚠️ Using local storage - no trades DB configured")
     
     return trade
 
@@ -394,7 +399,16 @@ async def close_position(exit_price: float, reason: str):
             print(f"📊 CLOSED #{total_trades}: ${exit_price:.0f} | PnL: ${pnl:.2f} | {reason}")
         except Exception as e:
             print(f"📊 CLOSED #{total_trades}: ${exit_price:.0f} | PnL: ${pnl:.2f} | {reason}")
-            print(f"⚠️ Trades DB update error: {str(e)[:50]}")
+            print(f"⚠️ Trades DB update error: {str(e)}")
+            # Fallback to local storage
+            update_data = {
+                "exit_price": exit_price,
+                "exit_time": current_position.exit_time.isoformat(),
+                "pnl": pnl,
+                "status": "closed",
+                "close_reason": reason
+            }
+            update_trade_locally(total_trades, update_data)
     else:
         # Fallback to local storage
         update_data = {
@@ -406,6 +420,7 @@ async def close_position(exit_price: float, reason: str):
         }
         update_trade_locally(total_trades, update_data)
         print(f"📊 CLOSED #{total_trades}: ${exit_price:.0f} | PnL: ${pnl:.2f} | {reason}")
+        print("⚠️ Using local storage - no trades DB configured")
     
     current_position = None
 
