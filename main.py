@@ -284,6 +284,7 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     trade_data = {
         "trade_id": total_trades,
         "timestamp": trade.entry_time.isoformat(),
+        "created_at": trade.entry_time.isoformat(),  # Add created_at
         "direction": direction,
         "entry_price": entry,
         "stop_loss": stop_loss,
