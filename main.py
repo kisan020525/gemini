@@ -403,10 +403,10 @@ async def close_position(exit_price: float, reason: str):
     else:  # short
         pnl = (current_position.entry_price - exit_price) * current_position.position_size
     
-    # Validate PnL calculation
-    expected_pnl = current_position.risk_amount if reason == "Stop Loss" else None
-    if reason == "Stop Loss" and abs(abs(pnl) - current_position.risk_amount) > 1:
-        print(f"⚠️ PnL mismatch: Expected ~${current_position.risk_amount}, Got ${pnl:.2f}")
+    # Validate PnL calculation with safe attribute access
+    expected_pnl = getattr(current_position, 'risk_amount', 200.0) if reason == "Stop Loss" else None
+    if reason == "Stop Loss" and expected_pnl and abs(abs(pnl) - expected_pnl) > 1:
+        print(f"⚠️ PnL mismatch: Expected ~${expected_pnl}, Got ${pnl:.2f}")
     
     current_position.pnl = pnl
     current_position.exit_price = exit_price
@@ -540,6 +540,7 @@ async def sync_position_from_database():
                 )
                 current_position.entry_time = entry_time
                 current_position.status = 'open'
+                current_position.risk_amount = float(trade_data.get('risk_amount', 200.0))  # Add missing attribute
                 
                 # Sync counters
                 total_trades = int(trade_data['trade_id'])
