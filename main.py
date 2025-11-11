@@ -52,11 +52,11 @@ api_key_daily_count = [0] * 6  # Track daily usage
 api_key_daily_reset = [0] * 6  # Track daily reset time
 api_key_usage_count = [0] * 6  # Legacy compatibility
 
-# Trading state
+# Trading state - RESET TO START FRESH
 current_position = None
-demo_balance = DEMO_CAPITAL
-total_trades = 0
-winning_trades = 0
+demo_balance = 10000.0  # Starting capital
+total_trades = 0        # Reset trade counter
+winning_trades = 0      # Reset win counter
 
 class Trade:
     def __init__(self, entry_price: float, stop_loss: float, take_profit: float, 
