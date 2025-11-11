@@ -460,35 +460,40 @@ async def close_position(exit_price: float, reason: str):
     
     current_position = None
 
-async def check_stop_loss_take_profit(current_price: float):
-    """Check SL/TP levels with proper exit prices and correct logic"""
+async def check_stop_loss_take_profit(current_candle: Dict):
+    """Check SL/TP levels using candle high/low data"""
     if not current_position or current_position.status != 'open':
         return
     
-    print(f"🔍 Checking SL/TP: {current_position.direction.upper()} @ ${current_position.entry_price:.0f} | Current: ${current_price:.0f} | SL: ${current_position.stop_loss:.0f} | TP: ${current_position.take_profit:.0f}")
+    current_price = float(current_candle.get('close', 0))
+    candle_high = float(current_candle.get('high', 0))
+    candle_low = float(current_candle.get('low', 0))
+    
+    print(f"🔍 Checking SL/TP: {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
+    print(f"📊 Candle: H:${candle_high:.0f} L:${candle_low:.0f} C:${current_price:.0f} | SL:${current_position.stop_loss:.0f} TP:${current_position.take_profit:.0f}")
     
     if current_position.direction == 'long':
-        # LONG: SL below entry, TP above entry
-        if current_price <= current_position.stop_loss:
-            print(f"🛑 LONG Stop Loss triggered: ${current_price:.0f} <= ${current_position.stop_loss:.0f}")
+        # LONG: Check if candle low hit stop loss OR candle high hit take profit
+        if candle_low <= current_position.stop_loss:
+            print(f"🛑 LONG Stop Loss HIT: Candle low ${candle_low:.0f} <= SL ${current_position.stop_loss:.0f}")
             await close_position(current_position.stop_loss, "Stop Loss")
             return
-        elif current_price >= current_position.take_profit:
-            print(f"🎯 LONG Take Profit triggered: ${current_price:.0f} >= ${current_position.take_profit:.0f}")
+        elif candle_high >= current_position.take_profit:
+            print(f"🎯 LONG Take Profit HIT: Candle high ${candle_high:.0f} >= TP ${current_position.take_profit:.0f}")
             await close_position(current_position.take_profit, "Take Profit")
             return
     else:  # short
-        # SHORT: SL above entry, TP below entry  
-        if current_price >= current_position.stop_loss:
-            print(f"🛑 SHORT Stop Loss triggered: ${current_price:.0f} >= ${current_position.stop_loss:.0f}")
+        # SHORT: Check if candle high hit stop loss OR candle low hit take profit
+        if candle_high >= current_position.stop_loss:
+            print(f"🛑 SHORT Stop Loss HIT: Candle high ${candle_high:.0f} >= SL ${current_position.stop_loss:.0f}")
             await close_position(current_position.stop_loss, "Stop Loss")
             return
-        elif current_price <= current_position.take_profit:
-            print(f"🎯 SHORT Take Profit triggered: ${current_price:.0f} <= ${current_position.take_profit:.0f}")
+        elif candle_low <= current_position.take_profit:
+            print(f"🎯 SHORT Take Profit HIT: Candle low ${candle_low:.0f} <= TP ${current_position.take_profit:.0f}")
             await close_position(current_position.take_profit, "Take Profit")
             return
     
-    print(f"✅ Position safe: SL/TP not triggered")
+    print(f"✅ Position safe: SL/TP not hit this candle")
 
 async def print_stats():
     """Print trading statistics"""
@@ -595,8 +600,8 @@ async def main():
             if current_candle_time != last_candle_time:
                 print(f"🕐 New candle detected: {current_candle_time[-8:-3]} | Price: ${current_price:.0f}")
                 
-                # ALWAYS check position management first with current price
-                await check_stop_loss_take_profit(current_price)
+                # ALWAYS check position management first with full candle data
+                await check_stop_loss_take_profit(candles[-1])  # Pass full candle data
                 
                 # Skip analysis if position was just closed
                 if not current_position or current_position.status != 'open':
