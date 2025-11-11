@@ -32,7 +32,7 @@ GEMINI_API_KEYS = [
 # Trading Configuration
 DEMO_CAPITAL = 10000.0
 RISK_PER_TRADE = 0.02
-ANALYSIS_INTERVAL = 900  # 15 minutes for free tier (4 calls per hour per key = 24 total)
+ANALYSIS_INTERVAL = 3600  # 1 hour intervals for free tier safety
 
 # IST timezone
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -40,10 +40,11 @@ IST = timezone(timedelta(hours=5, minutes=30))
 # Initialize Supabase
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# API Key rotation
+# API Key rotation with daily limits
 current_api_key_index = 0
-api_key_usage_count = [0] * 6  # Track usage per key
-api_key_reset_time = [0] * 6   # Track reset times
+api_key_last_used = [0] * 6   # Track last usage time
+api_key_daily_count = [0] * 6  # Track daily usage
+api_key_daily_reset = [0] * 6  # Track daily reset time
 
 # Trading state
 current_position = None
@@ -66,33 +67,44 @@ class Trade:
         self.status = 'open'
 
 def get_next_api_key() -> str:
-    """Get next available API key with rate limit management"""
-    global current_api_key_index, api_key_usage_count, api_key_reset_time
+    """Ultra-conservative API key management for free tier"""
+    global current_api_key_index, api_key_last_used, api_key_daily_count, api_key_daily_reset
     
     current_time = time.time()
     
-    # Check if current key needs reset (every hour)
+    # Reset daily counters (every 24 hours)
     for i in range(6):
-        if current_time - api_key_reset_time[i] > 3600:  # 1 hour
-            api_key_usage_count[i] = 0
-            api_key_reset_time[i] = current_time
+        if current_time - api_key_daily_reset[i] > 86400:  # 24 hours
+            api_key_daily_count[i] = 0
+            api_key_daily_reset[i] = current_time
+            print(f"🔄 Reset daily counter for API Key #{i + 1}")
     
-    # Find available API key (under 240 requests to be safe)
+    # Find available API key with strict limits
     for attempt in range(6):
         key_index = (current_api_key_index + attempt) % 6
         
-        if api_key_usage_count[key_index] < 240:  # Leave buffer
-            current_api_key_index = key_index
-            api_key_usage_count[key_index] += 1
+        # Check daily limit (max 10 per day per key)
+        if api_key_daily_count[key_index] >= 10:
+            continue
             
-            api_key = GEMINI_API_KEYS[key_index]
-            if api_key:
-                print(f"🔑 Using API Key #{key_index + 1} (Usage: {api_key_usage_count[key_index]}/250)")
-                return api_key
+        # Check minimum time between calls (15 minutes)
+        time_since_last = current_time - api_key_last_used[key_index]
+        if time_since_last < 900:  # 15 minutes
+            continue
+        
+        # This key is available
+        current_api_key_index = key_index
+        api_key_last_used[key_index] = current_time
+        api_key_daily_count[key_index] += 1
+        
+        api_key = GEMINI_API_KEYS[key_index]
+        if api_key:
+            print(f"🔑 Using API Key #{key_index + 1} (Daily: {api_key_daily_count[key_index]}/10)")
+            return api_key
     
-    # All keys exhausted, use first one and wait
-    print("⚠️  All API keys near limit, using key #1 with delay")
-    return GEMINI_API_KEYS[0] if GEMINI_API_KEYS[0] else ""
+    # No keys available
+    print("⏳ All API keys cooling down, waiting...")
+    return None
 
 async def fetch_latest_candles(limit: int = 6000) -> List[Dict]:
     """Fetch candles from candle collector server via Supabase"""
@@ -126,57 +138,74 @@ def format_candles_for_gemini(candles: List[Dict]) -> str:
     return formatted_data
 
 async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
-    """Get trading signal using API key rotation"""
+    """Get trading signal with ultra-conservative rate limiting"""
     try:
         # Get next available API key
         api_key = get_next_api_key()
         if not api_key:
-            return {"signal": "HOLD", "confidence": 0, "reasoning": "No API key available"}
+            print("🚫 No API keys available, skipping analysis")
+            return {"signal": "HOLD", "confidence": 0, "reasoning": "No API keys available"}
         
         # Configure Gemini with current API key
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        model = genai.GenerativeModel('gemini-1.5-flash')  # Use stable model
         
-        # Shorter, more efficient prompt
+        # Minimal prompt to reduce token usage
         prompt = f"""
-        Bitcoin Analysis - Current: ${current_price:.0f}
-
-        {candles_data}
-
-        Quick trading decision in JSON:
-        {{
-            "signal": "BUY/SELL/HOLD",
-            "entry": {current_price:.0f},
-            "stop_loss": {current_price * 0.98:.0f},
-            "take_profit": {current_price * 1.04:.0f},
-            "confidence": 7,
-            "reasoning": "Brief analysis"
-        }}
-
-        Rules: Min 6 confidence to trade, 1:2 risk/reward
+        Bitcoin: ${current_price:.0f}
+        
+        Trend analysis. Respond only:
+        {{"signal": "HOLD", "confidence": 5}}
         """
         
         response = model.generate_content(prompt)
         response_text = response.text.strip()
         
-        # Clean JSON
-        if '```json' in response_text:
-            response_text = response_text.split('```json')[1].split('```')[0]
-        elif '```' in response_text:
-            response_text = response_text.split('```')[1]
+        # Try to parse JSON
+        try:
+            if '```json' in response_text:
+                response_text = response_text.split('```json')[1].split('```')[0]
+            elif '```' in response_text:
+                response_text = response_text.split('```')[1]
             
-        return json.loads(response_text)
+            result = json.loads(response_text)
+            
+            # Add missing fields
+            result['entry'] = current_price
+            result['stop_loss'] = current_price * 0.98
+            result['take_profit'] = current_price * 1.04
+            result['reasoning'] = result.get('reasoning', 'AI analysis')
+            
+            return result
+            
+        except json.JSONDecodeError:
+            # Fallback if JSON parsing fails
+            return {
+                "signal": "HOLD", 
+                "confidence": 5, 
+                "reasoning": "JSON parse error",
+                "entry": current_price,
+                "stop_loss": current_price * 0.98,
+                "take_profit": current_price * 1.04
+            }
         
     except Exception as e:
         error_msg = str(e)
-        if "429" in error_msg or "quota" in error_msg.lower():
-            print(f"🚫 Rate limit hit on API key #{current_api_key_index + 1}")
-            # Mark this key as exhausted
-            api_key_usage_count[current_api_key_index] = 250
+        if "429" in error_msg or "quota" in error_msg.lower() or "rate" in error_msg.lower():
+            print(f"🚫 Rate limit on API key #{current_api_key_index + 1}")
+            # Mark this key as exhausted for today
+            api_key_daily_count[current_api_key_index] = 10
         else:
             print(f"❌ Gemini error: {e}")
         
-        return {"signal": "HOLD", "confidence": 0, "reasoning": f"Error: {e}"}
+        return {
+            "signal": "HOLD", 
+            "confidence": 0, 
+            "reasoning": f"Error: {str(e)[:50]}",
+            "entry": current_price,
+            "stop_loss": current_price * 0.98,
+            "take_profit": current_price * 1.04
+        }
 
 def calculate_position_size(entry: float, stop_loss: float, risk_amount: float) -> float:
     """Calculate position size for risk management"""
@@ -303,13 +332,14 @@ async def print_stats():
 
 async def main():
     """Main trading loop with 6 API keys"""
-    print("🤖 Gemini Trading Bot - 6 API Keys (24 calls/hour)")
+    print("🤖 Gemini Trading Bot - Ultra Conservative")
     print(f"💰 Demo Capital: ${DEMO_CAPITAL}")
-    print("⚡ Every 15 minutes analysis (free tier optimized)")
+    print("⏳ Hourly analysis (free tier safe)")
     
     # Validate API keys
     valid_keys = [key for key in GEMINI_API_KEYS if key]
     print(f"🔑 API Keys loaded: {len(valid_keys)}/6")
+    print("📊 Max 10 calls per day per key = 60 total daily calls")
     
     if len(valid_keys) == 0:
         print("❌ No API keys found! Add GEMINI_API_KEY_1 to GEMINI_API_KEY_6")
