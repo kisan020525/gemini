@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gemini Trading Bot Dashboard</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial; margin: 20px; background: #1a1a1a; color: #fff; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card { background: #2d2d2d; padding: 20px; margin: 10px 0; border-radius: 8px; }
+        .price { font-size: 2em; color: #00ff88; }
+        .trade { padding: 10px; margin: 5px 0; background: #333; border-radius: 4px; }
+        .buy { border-left: 4px solid #00ff88; }
+        .sell { border-left: 4px solid #ff4444; }
+        .hold { border-left: 4px solid #ffaa00; }
+        .status { display: flex; gap: 20px; }
+        .stat { text-align: center; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #444; }
+        .refresh { background: #007acc; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Gemini Trading Bot Dashboard</h1>
+        
+        <div class="card">
+            <h2>Current Status</h2>
+            <div class="status">
+                <div class="stat">
+                    <div class="price" id="price">$0</div>
+                    <div>Bitcoin Price</div>
+                </div>
+                <div class="stat">
+                    <div id="signal">-</div>
+                    <div>Latest Signal</div>
+                </div>
+                <div class="stat">
+                    <div id="confidence">-</div>
+                    <div>Confidence</div>
+                </div>
+            </div>
+            <button class="refresh" onclick="loadData()">🔄 Refresh</button>
+        </div>
+
+        <div class="card">
+            <h2>Recent Trades</h2>
+            <div id="trades"></div>
+        </div>
+
+        <div class="card">
+            <h2>Price Chart (Last 100 Candles)</h2>
+            <canvas id="chart" width="800" height="300"></canvas>
+        </div>
+    </div>
+
+    <script>
+        function loadData() {
+            // Load status
+            fetch('/api/status')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('price').textContent = '$' + data.current_price.toFixed(0);
+                    if (data.latest_trade) {
+                        document.getElementById('signal').textContent = data.latest_trade.direction.toUpperCase();
+                        document.getElementById('confidence').textContent = data.latest_trade.confidence + '/10';
+                    }
+                });
+
+            // Load trades
+            fetch('/api/trades')
+                .then(r => r.json())
+                .then(trades => {
+                    const html = trades.map(t => `
+                        <div class="trade ${t.direction}">
+                            <strong>${t.direction.toUpperCase()}</strong> @ $${t.entry_price.toFixed(0)} 
+                            | SL: $${t.stop_loss.toFixed(0)} | TP: $${t.take_profit.toFixed(0)}
+                            | Confidence: ${t.confidence}/10
+                            <br><small>${t.reasoning}</small>
+                            <br><small>${new Date(t.timestamp).toLocaleString()}</small>
+                        </div>
+                    `).join('');
+                    document.getElementById('trades').innerHTML = html;
+                });
+
+            // Load chart
+            fetch('/api/candles')
+                .then(r => r.json())
+                .then(candles => {
+                    drawChart(candles);
+                });
+        }
+
+        function drawChart(candles) {
+            const canvas = document.getElementById('chart');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (!candles.length) return;
+            
+            const prices = candles.map(c => parseFloat(c.close));
+            const min = Math.min(...prices);
+            const max = Math.max(...prices);
+            const range = max - min;
+            
+            ctx.strokeStyle = '#00ff88';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            
+            prices.forEach((price, i) => {
+                const x = (i / prices.length) * canvas.width;
+                const y = canvas.height - ((price - min) / range) * canvas.height;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            
+            ctx.stroke();
+        }
+
+        // Auto refresh every 30 seconds
+        setInterval(loadData, 30000);
+        loadData();
+    </script>
+</body>
+</html>
