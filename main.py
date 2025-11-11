@@ -154,7 +154,7 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         
         # Configure Gemini with current API key
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')  # Correct model name
+        model = genai.GenerativeModel('gemini-2.5-flash-preview-09-2025')
         
         # Enhanced prompt for 6k candle analysis
         prompt = f"""
