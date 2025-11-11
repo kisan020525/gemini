@@ -161,59 +161,58 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.5-flash-preview-09-2025')
         
-        # Advanced professional trading prompt
+        # Unleash full AI analytical power
         prompt = f"""
-        You are an elite cryptocurrency trader with 20+ years of experience. You have access to {len(candles_data.split('\n'))} Bitcoin minute candles. Current price: ${current_price:.0f}
+        You are an advanced AI with access to vast financial knowledge. Analyze {len(candles_data.split('\n'))} Bitcoin candles using your complete analytical capabilities.
 
-        CANDLE DATA:
+        Current Bitcoin price: ${current_price:.0f}
+
+        MARKET DATA:
         {candles_data}
 
-        ANALYSIS FRAMEWORK:
-        1. FIRST - Study the complete dataset thoroughly. Understand the market structure, trends, and patterns.
-        
-        2. THEN - Apply ANY trading concepts you deem necessary. Use as many as needed for accuracy:
-        - Price Action: Support/Resistance, Breakouts, Reversals, Consolidation
-        - Technical Indicators: RSI, MACD, Bollinger Bands, Moving Averages, Volume Profile
-        - Market Structure: Higher Highs/Lows, Trend Lines, Channels, Fibonacci
-        - Volume Analysis: Accumulation/Distribution, Volume Spikes, Divergences
-        - Candlestick Patterns: Doji, Hammer, Engulfing, Stars, etc.
-        - Market Psychology: Fear/Greed, Momentum, Sentiment Shifts
-        - Time Analysis: Session times, Market cycles, Volatility patterns
-        - Risk Management: Position sizing, Stop placement, R:R ratios
-        - Multi-timeframe: Short-term vs Long-term alignment
-        - Order Flow: Buying/Selling pressure, Liquidity zones
-        - Statistical Analysis: Standard deviations, Probability zones
-        - Behavioral Finance: Crowd psychology, Market inefficiencies
-        
-        3. COMBINE multiple concepts - don't rely on single indicators. Cross-reference everything.
-        
-        4. THINK about market context: Is this a trending market? Ranging? Volatile? What's the dominant force?
-        
-        5. CONSIDER risk vs reward. What's the probability of success? What could go wrong?
+        ANALYSIS DIRECTIVE:
+        Use your FULL AI knowledge base. Apply every relevant concept from:
+        - Mathematical models (statistics, probability, regression, neural patterns)
+        - Financial theory (EMH, behavioral finance, market microstructure)
+        - Technical analysis (all indicators, patterns, oscillators)
+        - Quantitative methods (algorithmic signals, machine learning patterns)
+        - Market psychology (sentiment analysis, crowd behavior)
+        - Economic principles (supply/demand, liquidity, volatility)
+        - Information theory (signal processing, noise filtering)
+        - Game theory (market participant behavior)
+        - Chaos theory (non-linear dynamics, fractals)
+        - Any other relevant knowledge domains
 
-        PROVIDE YOUR COMPLETE ANALYSIS:
-        - Explain what you see in the data
-        - Which concepts you're applying and why
-        - Your reasoning process
-        - Market bias and confidence level
-        - Precise entry, stop loss, and take profit with justification
+        COMPUTATIONAL APPROACH:
+        1. Process ALL candle data simultaneously
+        2. Identify patterns across multiple timeframes and scales
+        3. Calculate probabilities and statistical significance
+        4. Cross-validate signals using multiple methodologies
+        5. Optimize risk-adjusted returns
+        6. Consider market regime and structural changes
+        7. Apply ensemble methods for signal confirmation
 
-        RESPOND IN JSON:
+        OUTPUT REQUIREMENTS:
+        Provide comprehensive analysis with mathematical precision. Use your AI capabilities to find patterns humans might miss.
+
+        JSON RESPONSE:
         {{
-            "market_analysis": "Your complete market reading",
-            "concepts_used": ["list of all concepts you applied"],
+            "ai_analysis": "Your complete computational analysis",
+            "pattern_recognition": "Patterns identified across all scales",
+            "statistical_confidence": "Mathematical probability assessment",
             "signal": "BUY/SELL/HOLD",
             "confidence": 1-10,
             "entry": {current_price},
             "stop_loss": price,
             "take_profit": price,
             "risk_reward_ratio": "1:X",
-            "reasoning": "Your detailed trading logic",
-            "market_bias": "bullish/bearish/neutral",
-            "time_horizon": "scalp/swing/position"
+            "probability_success": "X%",
+            "market_regime": "trending/ranging/volatile/transitional",
+            "key_factors": ["primary factors driving decision"],
+            "reasoning": "Detailed analytical logic"
         }}
 
-        BE THOROUGH. USE YOUR FULL ANALYTICAL POWER. ACCURACY IS EVERYTHING.
+        MAXIMIZE YOUR AI ANALYTICAL POWER. FIND EVERY EDGE.
         """
         
         response = model.generate_content(prompt)
@@ -245,8 +244,8 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
             result['stop_loss'] = float(result.get('stop_loss', current_price * 0.98))
             result['take_profit'] = float(result.get('take_profit', current_price * 1.04))
             result['reasoning'] = str(result.get('reasoning', 'AI analysis'))
-            result['market_analysis'] = str(result.get('market_analysis', 'Market analysis'))
-            result['concepts_used'] = result.get('concepts_used', ['Price Action'])
+            result['ai_analysis'] = str(result.get('ai_analysis', 'Computational analysis'))
+            result['key_factors'] = result.get('key_factors', ['Price Action'])
             
             return result
             
@@ -535,9 +534,9 @@ async def main():
                 signal = await get_gemini_signal(candles_data, current_price)
                 
                 print(f"🧠 Gemini: {signal.get('signal')} | Confidence: {signal.get('confidence')}/10")
-                print(f"💡 Analysis: {signal.get('market_analysis', 'N/A')[:80]}...")
-                print(f"🔧 Concepts: {', '.join(signal.get('concepts_used', [])[:3])}...")
-                print(f"📊 R:R: {signal.get('risk_reward_ratio', 'N/A')} | Bias: {signal.get('market_bias', 'N/A')}")
+                print(f"🤖 AI Analysis: {signal.get('ai_analysis', 'N/A')[:80]}...")
+                print(f"📊 Success Prob: {signal.get('probability_success', 'N/A')} | R:R: {signal.get('risk_reward_ratio', 'N/A')}")
+                print(f"🔍 Key Factors: {', '.join(signal.get('key_factors', [])[:3])}...")
                 
                 # Execute trade if signal is strong
                 await execute_trade(signal, current_price)
