@@ -161,14 +161,59 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.5-flash-preview-09-2025')
         
-        # Enhanced prompt for 6k candle analysis
+        # Advanced professional trading prompt
         prompt = f"""
-        Analyze {len(candles_data.split('\n'))} Bitcoin candles. Current: ${current_price:.0f}
-        
+        You are an elite cryptocurrency trader with 20+ years of experience. You have access to {len(candles_data.split('\n'))} Bitcoin minute candles. Current price: ${current_price:.0f}
+
+        CANDLE DATA:
         {candles_data}
+
+        ANALYSIS FRAMEWORK:
+        1. FIRST - Study the complete dataset thoroughly. Understand the market structure, trends, and patterns.
         
-        Based on ALL candle data, provide trading signal:
-        {{"signal": "BUY/SELL/HOLD", "confidence": 1-10, "entry": {current_price}, "stop_loss": price, "take_profit": price, "reasoning": "brief analysis"}}
+        2. THEN - Apply ANY trading concepts you deem necessary. Use as many as needed for accuracy:
+        - Price Action: Support/Resistance, Breakouts, Reversals, Consolidation
+        - Technical Indicators: RSI, MACD, Bollinger Bands, Moving Averages, Volume Profile
+        - Market Structure: Higher Highs/Lows, Trend Lines, Channels, Fibonacci
+        - Volume Analysis: Accumulation/Distribution, Volume Spikes, Divergences
+        - Candlestick Patterns: Doji, Hammer, Engulfing, Stars, etc.
+        - Market Psychology: Fear/Greed, Momentum, Sentiment Shifts
+        - Time Analysis: Session times, Market cycles, Volatility patterns
+        - Risk Management: Position sizing, Stop placement, R:R ratios
+        - Multi-timeframe: Short-term vs Long-term alignment
+        - Order Flow: Buying/Selling pressure, Liquidity zones
+        - Statistical Analysis: Standard deviations, Probability zones
+        - Behavioral Finance: Crowd psychology, Market inefficiencies
+        
+        3. COMBINE multiple concepts - don't rely on single indicators. Cross-reference everything.
+        
+        4. THINK about market context: Is this a trending market? Ranging? Volatile? What's the dominant force?
+        
+        5. CONSIDER risk vs reward. What's the probability of success? What could go wrong?
+
+        PROVIDE YOUR COMPLETE ANALYSIS:
+        - Explain what you see in the data
+        - Which concepts you're applying and why
+        - Your reasoning process
+        - Market bias and confidence level
+        - Precise entry, stop loss, and take profit with justification
+
+        RESPOND IN JSON:
+        {{
+            "market_analysis": "Your complete market reading",
+            "concepts_used": ["list of all concepts you applied"],
+            "signal": "BUY/SELL/HOLD",
+            "confidence": 1-10,
+            "entry": {current_price},
+            "stop_loss": price,
+            "take_profit": price,
+            "risk_reward_ratio": "1:X",
+            "reasoning": "Your detailed trading logic",
+            "market_bias": "bullish/bearish/neutral",
+            "time_horizon": "scalp/swing/position"
+        }}
+
+        BE THOROUGH. USE YOUR FULL ANALYTICAL POWER. ACCURACY IS EVERYTHING.
         """
         
         response = model.generate_content(prompt)
@@ -200,6 +245,8 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
             result['stop_loss'] = float(result.get('stop_loss', current_price * 0.98))
             result['take_profit'] = float(result.get('take_profit', current_price * 1.04))
             result['reasoning'] = str(result.get('reasoning', 'AI analysis'))
+            result['market_analysis'] = str(result.get('market_analysis', 'Market analysis'))
+            result['concepts_used'] = result.get('concepts_used', ['Price Action'])
             
             return result
             
@@ -488,7 +535,9 @@ async def main():
                 signal = await get_gemini_signal(candles_data, current_price)
                 
                 print(f"🧠 Gemini: {signal.get('signal')} | Confidence: {signal.get('confidence')}/10")
-                print(f"💡 Reasoning: {signal.get('reasoning', 'N/A')[:50]}")
+                print(f"💡 Analysis: {signal.get('market_analysis', 'N/A')[:80]}...")
+                print(f"🔧 Concepts: {', '.join(signal.get('concepts_used', [])[:3])}...")
+                print(f"📊 R:R: {signal.get('risk_reward_ratio', 'N/A')} | Bias: {signal.get('market_bias', 'N/A')}")
                 
                 # Execute trade if signal is strong
                 await execute_trade(signal, current_price)
