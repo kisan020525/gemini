@@ -23,7 +23,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 TRADES_SUPABASE_URL = os.getenv("TRADES_SUPABASE_URL")
 TRADES_SUPABASE_KEY = os.getenv("TRADES_SUPABASE_KEY")
 
-# 6 Gemini API Keys for rotation (250 RPD each = 1500 total)
+# 6 Gemini API Keys for analysis (250 RPD each = 1500 total)
 GEMINI_API_KEYS = [
     os.getenv("GEMINI_API_KEY_1"),
     os.getenv("GEMINI_API_KEY_2"), 
@@ -31,6 +31,12 @@ GEMINI_API_KEYS = [
     os.getenv("GEMINI_API_KEY_4"),
     os.getenv("GEMINI_API_KEY_5"),
     os.getenv("GEMINI_API_KEY_6")
+]
+
+# 2 Gemini Lite API Keys for trade management (1000 RPD each = 2000 total)
+GEMINI_LITE_API_KEYS = [
+    os.getenv("GEMINI_LITE_API_KEY_1"),
+    os.getenv("GEMINI_LITE_API_KEY_2")
 ]
 
 # Trading Configuration
@@ -45,12 +51,18 @@ IST = timezone(timedelta(hours=5, minutes=30))
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)  # For candles
 trades_supabase = create_client(TRADES_SUPABASE_URL, TRADES_SUPABASE_KEY) if TRADES_SUPABASE_URL else None
 
-# API Key rotation with daily limits
+# API Key rotation for both models
 current_api_key_index = 0
 api_key_last_used = [0] * 6   # Track last usage time
 api_key_daily_count = [0] * 6  # Track daily usage
 api_key_daily_reset = [0] * 6  # Track daily reset time
 api_key_usage_count = [0] * 6  # Legacy compatibility
+
+# Lite model rotation
+current_lite_key_index = 0
+lite_key_last_used = [0] * 2
+lite_key_daily_count = [0] * 2
+lite_key_daily_reset = [0] * 2
 
 # Trading state - RESET TO START FRESH
 current_position = None
@@ -71,6 +83,46 @@ class Trade:
         self.exit_price = None
         self.pnl = 0.0
         self.status = 'open'
+
+def get_next_lite_api_key() -> str:
+    """Get next available Lite API key for trade management"""
+    global current_lite_key_index, lite_key_last_used, lite_key_daily_count, lite_key_daily_reset
+    
+    current_time = time.time()
+    
+    # Reset daily counters (every 24 hours)
+    for i in range(2):
+        if current_time - lite_key_daily_reset[i] > 86400:  # 24 hours
+            lite_key_daily_count[i] = 0
+            lite_key_daily_reset[i] = current_time
+            print(f"🔄 Reset daily counter for Lite API Key #{i + 1}")
+    
+    # Find available API key (1000 calls per day)
+    for attempt in range(2):
+        key_index = (current_lite_key_index + attempt) % 2
+        
+        # Check daily limit (max 1000 per day per key)
+        if lite_key_daily_count[key_index] >= 1000:
+            continue
+            
+        # Check minimum time between calls (30 seconds for lite)
+        time_since_last = current_time - lite_key_last_used[key_index]
+        if time_since_last < 30:  # 30 seconds
+            continue
+        
+        # This key is available
+        current_lite_key_index = key_index
+        lite_key_last_used[key_index] = current_time
+        lite_key_daily_count[key_index] += 1
+        
+        api_key = GEMINI_LITE_API_KEYS[key_index]
+        if api_key:
+            print(f"🔑 Using Lite API Key #{key_index + 1} (Daily: {lite_key_daily_count[key_index]}/1000)")
+            return api_key
+    
+    # No keys available
+    print("⏳ All Lite API keys cooling down, waiting...")
+    return None
 
 def get_next_api_key() -> str:
     """Ultra-conservative API key management for free tier"""
