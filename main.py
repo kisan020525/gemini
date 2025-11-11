@@ -275,7 +275,7 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     current_position = trade
     total_trades += 1
     
-    # Save to database
+    # Save to database (with error handling)
     trade_data = {
         "trade_id": total_trades,
         "timestamp": trade.entry_time.isoformat(),
@@ -294,7 +294,8 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
         supabase.table("paper_trades").insert(trade_data).execute()
         print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
     except Exception as e:
-        print(f"❌ Save error: {e}")
+        print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
+        print(f"⚠️ DB save failed: {str(e)[:50]}")
     
     return trade
 
@@ -320,7 +321,7 @@ async def close_position(exit_price: float, reason: str):
     if pnl > 0:
         winning_trades += 1
     
-    # Update database
+    # Update database (with error handling)
     try:
         supabase.table("paper_trades").update({
             "exit_price": exit_price,
@@ -332,7 +333,8 @@ async def close_position(exit_price: float, reason: str):
         
         print(f"📊 CLOSED #{total_trades}: ${exit_price:.0f} | PnL: ${pnl:.2f} | {reason}")
     except Exception as e:
-        print(f"❌ Update error: {e}")
+        print(f"📊 CLOSED #{total_trades}: ${exit_price:.0f} | PnL: ${pnl:.2f} | {reason}")
+        print(f"⚠️ DB update failed: {str(e)[:50]}")
     
     current_position = None
 
@@ -372,6 +374,32 @@ async def wait_for_new_candle(last_candle_time: str) -> bool:
         except:
             await asyncio.sleep(30)
 
+async def create_trades_table():
+    """Create paper_trades table if it doesn't exist"""
+    try:
+        # Create table via SQL
+        supabase.postgrest.rpc('create_paper_trades_table').execute()
+    except:
+        # Fallback: try to insert a dummy record to trigger table creation
+        try:
+            supabase.table("paper_trades").insert({
+                "trade_id": 0,
+                "timestamp": datetime.now(IST).isoformat(),
+                "direction": "test",
+                "entry_price": 0,
+                "stop_loss": 0,
+                "take_profit": 0,
+                "position_size": 0,
+                "risk_amount": 0,
+                "confidence": 0,
+                "reasoning": "table creation",
+                "status": "test"
+            }).execute()
+            # Delete the test record
+            supabase.table("paper_trades").delete().eq("trade_id", 0).execute()
+        except:
+            pass
+
 async def main():
     """Main trading loop triggered by new candles"""
     print("🤖 Gemini Trading Bot - 6K Candle Analysis")
@@ -384,6 +412,9 @@ async def main():
     if len(valid_keys) == 0:
         print("❌ No API keys found!")
         return
+    
+    # Create trades table
+    await create_trades_table()
     
     last_candle_time = ""
     
