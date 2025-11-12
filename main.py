@@ -43,6 +43,7 @@ GEMINI_LITE_API_KEYS = [
 DEMO_CAPITAL = 10000.0
 RISK_PER_TRADE = 0.005  # 0.5% risk per trade for scalping (was 2%)
 ANALYSIS_INTERVAL = 60  # 1 minute for frequent trade entries
+COOLING_PERIOD = 300  # 5 minutes cooling period after closing trades
 
 # IST timezone
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -68,6 +69,7 @@ lite_key_daily_reset = [0] * 2
 current_position = None
 demo_balance = 10000.0  # Starting capital
 total_trades = 0        # Reset trade counter
+last_trade_close_time = None  # Track cooling period
 winning_trades = 0      # Reset win counter
 
 class Trade:
@@ -403,6 +405,14 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     """Execute paper trade - STRICTLY ONE AT A TIME"""
     global current_position, demo_balance, total_trades
     
+    # Check cooling period - prevent overtrading
+    if last_trade_close_time:
+        time_since_last_close = (datetime.now(IST) - last_trade_close_time).total_seconds()
+        if time_since_last_close < COOLING_PERIOD:
+            remaining_time = int(COOLING_PERIOD - time_since_last_close)
+            print(f"🧊 COOLING PERIOD: Wait {remaining_time}s before next trade (prevents overtrading)")
+            return None
+    
     # Only trade with VERY HIGH confidence (9+ out of 10 = 90%+)
     if signal['signal'] == 'HOLD' or signal['confidence'] < 9:
         if current_position and current_position.status == 'open':
@@ -485,10 +495,13 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
 
 async def close_position(exit_price: float, reason: str):
     """Close current position"""
-    global current_position, demo_balance, winning_trades
+    global current_position, demo_balance, winning_trades, last_trade_close_time
     
     if not current_position or current_position.status != 'open':
         return
+    
+    # Record close time for cooling period
+    last_trade_close_time = datetime.now(IST)
     
     # Calculate PnL with validation
     if current_position.direction == 'long':
