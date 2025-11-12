@@ -251,15 +251,15 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         You are an advanced AI SCALPING TRADER analyzing Bitcoin for HIGH-CONFIDENCE opportunities.
 
         SCALPING STRATEGY:
-        - ONLY trade when 80%+ confident (confidence: 8-10)
-        - Target small, quick profits ($20-50 per trade)
-        - Quick entries and exits (hold for minutes, not hours)
+        - ONLY trade when 90%+ confident (confidence: 9-10)
+        - Target meaningful profits ($80-150 per trade)
+        - Use proper stop losses ($50-80) to avoid noise
         - Focus on clear momentum and strong signals
         - Better to wait than take low-confidence trades
-        - Use tight stop losses ($15-30) to minimize risk
-        - Avoid premature exits — once a trade is active, wait for it to hit either TP or SL
+        - Minimum 1:2 Risk/Reward ratio required
+        - Hold positions for 5-15 minutes minimum
 
-        IMPORTANT: Set confidence to 8+ ONLY when you see clear, strong signals.
+        IMPORTANT: Set confidence to 9+ ONLY when you see VERY clear, strong signals.
 
         Current Bitcoin price: ${current_price:.0f}
 
@@ -403,18 +403,18 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     """Execute paper trade - STRICTLY ONE AT A TIME"""
     global current_position, demo_balance, total_trades
     
-    # Only trade with HIGH confidence (8+ out of 10 = 80%+)
-    if signal['signal'] == 'HOLD' or signal['confidence'] < 8:
+    # Only trade with VERY HIGH confidence (9+ out of 10 = 90%+)
+    if signal['signal'] == 'HOLD' or signal['confidence'] < 9:
         if current_position and current_position.status == 'open':
             print(f"⏸️ Holding current position: {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
         else:
-            print(f"⏳ WAITING for 80%+ confidence trade (Current: {signal['confidence']}/10)")
+            print(f"⏳ WAITING for 90%+ confidence trade (Current: {signal['confidence']}/10)")
         return None
     
-    # WAIT FOR CURRENT TRADE TO CLOSE - Only take new trade when 80%+ sure
+    # WAIT FOR CURRENT TRADE TO CLOSE - Only take new trade when 90%+ sure
     if current_position and current_position.status == 'open':
         print(f"🔒 WAITING: Position open - {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
-        print(f"⏳ Will take new trade when current closes AND confidence ≥ 80%")
+        print(f"⏳ Will take new trade when current closes AND confidence ≥ 90%")
         return None
     
     # Validate trade parameters with LIVE CAPITAL
@@ -581,11 +581,13 @@ async def check_stop_loss_take_profit(current_candle: Dict):
         'current_price': current_price
     }
     
-    # Get AI decision from Gemini 2.5 Lite
-    decision = await get_trade_management_decision(current_price, position_data)
+    # DISABLED: AI trade management - let trades reach natural TP/SL
+    # decision = await get_trade_management_decision(current_price, position_data)
+    # print(f"🤖 Lite AI Decision: {decision.get('action')} | Urgency: {decision.get('urgency')}/10")
+    # print(f"💭 Reasoning: {decision.get('reasoning', 'N/A')[:60]}...")
     
-    print(f"🤖 Lite AI Decision: {decision.get('action')} | Urgency: {decision.get('urgency')}/10")
-    print(f"💭 Reasoning: {decision.get('reasoning', 'N/A')[:60]}...")
+    # Only check natural TP/SL levels - no AI interference
+    decision = {'action': 'HOLD'}
     
     # Execute AI decision
     if decision.get('action') == 'CLOSE':
