@@ -39,10 +39,10 @@ GEMINI_LITE_API_KEYS = [
     os.getenv("GEMINI_LITE_API_KEY_2")
 ]
 
-# Trading Configuration
+# Trading Configuration - SCALPING SETUP
 DEMO_CAPITAL = 10000.0
-RISK_PER_TRADE = 0.02
-ANALYSIS_INTERVAL = 3600  # 1 hour intervals for free tier safety
+RISK_PER_TRADE = 0.005  # 0.5% risk per trade for scalping (was 2%)
+ANALYSIS_INTERVAL = 900  # 15 minutes for scalping (was 1 hour)
 
 # IST timezone
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -164,8 +164,8 @@ def get_next_api_key() -> str:
     print("⏳ All API keys cooling down, waiting...")
     return None
 
-async def fetch_latest_candles(limit: int = 6000) -> List[Dict]:
-    """Fetch candles from candle collector server via Supabase"""
+async def fetch_latest_candles(limit: int = 500) -> List[Dict]:
+    """Fetch recent candles for scalping analysis"""
     try:
         response = supabase.table("candles").select("*").order("timestamp", desc=True).limit(limit).execute()
         return list(reversed(response.data))
@@ -246,8 +246,15 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         
         # Unleash full AI analytical power with PAST PERFORMANCE
         prompt = f"""
-        You are an advanced AI analyzing Bitcoin with access to your PAST TRADING PERFORMANCE.
-
+        You are an advanced AI SCALPING TRADER analyzing Bitcoin for quick profit opportunities.
+        
+        SCALPING STRATEGY:
+        - Target small, frequent profits ($20-50 per trade)
+        - Quick entries and exits (hold for minutes, not hours)
+        - Focus on immediate price action and momentum
+        - High win rate is more important than big profits
+        - Use tight stop losses ($15-30) to minimize risk
+        
         Current Bitcoin price: ${current_price:.0f}
 
         {await get_past_trades_for_gemini()}
@@ -386,11 +393,11 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
             print(f"⏸️ Holding current position: {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
         return None
     
-    # STRICTLY ONE TRADE AT A TIME - no exceptions
-    if current_position and current_position.status == 'open':
-        print(f"🚫 CANNOT TRADE: Position already open - {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
-        print(f"🔒 ONE TRADE AT A TIME RULE - Wait for current trade to close")
-        return None
+    # SCALPING: Allow multiple trades for frequent opportunities
+    # if current_position and current_position.status == 'open':
+    #     print(f"🚫 CANNOT TRADE: Position already open - {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
+    #     print(f"🔒 ONE TRADE AT A TIME RULE - Wait for current trade to close")
+    #     return None
     
     # Validate trade parameters with LIVE CAPITAL
     risk_amount = demo_balance * RISK_PER_TRADE  # Use current balance, not fixed amount
@@ -628,7 +635,12 @@ async def get_trade_management_decision(current_price: float, position_data: Dic
         
         # Trade management prompt with full context
         prompt = f"""
-        You are an AI trade manager. Make smart closing decisions based on market conditions.
+        You are an AI SCALPING trade manager. Make QUICK closing decisions for small profits.
+        
+        SCALPING RULES:
+        - Close positions quickly when in profit ($20-50 range)
+        - Don't hold losing positions long - cut losses fast
+        - Focus on momentum changes and immediate price action
         
         Current Bitcoin price: ${current_price:.0f}
         
@@ -818,7 +830,7 @@ async def main():
             candles = await fetch_latest_candles(6000)
             if not candles:
                 print("⏳ Waiting for candle data...")
-                await asyncio.sleep(60)
+                await asyncio.sleep(15)  # Check every 15 seconds for scalping
                 continue
             
             current_candle_time = candles[-1].get('timestamp', '')
@@ -861,7 +873,7 @@ async def main():
             
         except Exception as e:
             print(f"❌ Error: {e}")
-            await asyncio.sleep(60)
+            await asyncio.sleep(15)  # Faster retry for scalping
 
 if __name__ == "__main__":
     asyncio.run(main())
