@@ -246,14 +246,17 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         
         # Unleash full AI analytical power with PAST PERFORMANCE
         prompt = f"""
-        You are an advanced AI SCALPING TRADER analyzing Bitcoin for quick profit opportunities.
+        You are an advanced AI SCALPING TRADER analyzing Bitcoin for HIGH-CONFIDENCE opportunities.
         
         SCALPING STRATEGY:
-        - Target small, frequent profits ($20-50 per trade)
+        - ONLY trade when 80%+ confident (confidence: 8-10)
+        - Target small, quick profits ($20-50 per trade)
         - Quick entries and exits (hold for minutes, not hours)
-        - Focus on immediate price action and momentum
-        - High win rate is more important than big profits
+        - Focus on clear momentum and strong signals
+        - Better to wait than take low-confidence trades
         - Use tight stop losses ($15-30) to minimize risk
+        
+        IMPORTANT: Set confidence to 8+ ONLY when you see clear, strong signals.
         
         Current Bitcoin price: ${current_price:.0f}
 
@@ -387,17 +390,19 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     """Execute paper trade - STRICTLY ONE AT A TIME"""
     global current_position, demo_balance, total_trades
     
-    # Only trade with high confidence (8+ out of 10)
+    # Only trade with HIGH confidence (8+ out of 10 = 80%+)
     if signal['signal'] == 'HOLD' or signal['confidence'] < 8:
         if current_position and current_position.status == 'open':
             print(f"⏸️ Holding current position: {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
+        else:
+            print(f"⏳ WAITING for 80%+ confidence trade (Current: {signal['confidence']}/10)")
         return None
     
-    # SCALPING: Allow multiple trades for frequent opportunities
-    # if current_position and current_position.status == 'open':
-    #     print(f"🚫 CANNOT TRADE: Position already open - {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
-    #     print(f"🔒 ONE TRADE AT A TIME RULE - Wait for current trade to close")
-    #     return None
+    # WAIT FOR CURRENT TRADE TO CLOSE - Only take new trade when 80%+ sure
+    if current_position and current_position.status == 'open':
+        print(f"🔒 WAITING: Position open - {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
+        print(f"⏳ Will take new trade when current closes AND confidence ≥ 80%")
+        return None
     
     # Validate trade parameters with LIVE CAPITAL
     risk_amount = demo_balance * RISK_PER_TRADE  # Use current balance, not fixed amount
