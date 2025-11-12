@@ -441,6 +441,17 @@ def get_analysis_memory_for_gemini() -> str:
         return min(position_size, max_position)
     return 0
 
+def calculate_position_size(entry: float, stop_loss: float, risk_amount: float) -> float:
+    """Calculate position size for risk management"""
+    risk_per_unit = abs(entry - stop_loss)
+    if risk_per_unit > 0:
+        position_size = risk_amount / risk_per_unit
+        # Limit position size to reasonable amounts (max $50k notional)
+        max_notional = 50000
+        max_position = max_notional / entry
+        return min(position_size, max_position)
+    return 0.0
+
 async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     """Execute paper trade - STRICTLY ONE AT A TIME"""
     global current_position, demo_balance, total_trades
