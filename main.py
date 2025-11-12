@@ -164,8 +164,8 @@ def get_next_api_key() -> str:
     print("⏳ All API keys cooling down, waiting...")
     return None
 
-async def fetch_latest_candles(limit: int = 500) -> List[Dict]:
-    """Fetch recent candles for scalping analysis"""
+async def fetch_latest_candles(limit: int = 6000) -> List[Dict]:
+    """Fetch latest candles for comprehensive market analysis"""
     try:
         response = supabase.table("candles").select("*").order("timestamp", desc=True).limit(limit).execute()
         return list(reversed(response.data))
