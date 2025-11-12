@@ -68,6 +68,7 @@ lite_key_daily_reset = [0] * 2
 current_position = None
 demo_balance = 10000.0  # Starting capital
 total_trades = 0        # Reset trade counter
+analysis_memory = []    # Store last 30 analysis decisions
 winning_trades = 0      # Reset win counter
 
 class Trade:
@@ -267,6 +268,8 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
 
         Current Bitcoin price: ${current_price:.0f}
 
+        {get_analysis_memory_for_gemini()}
+
         {await get_past_trades_for_gemini()}
 
         CURRENT MARKET DATA:
@@ -350,6 +353,14 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
             result['ai_analysis'] = str(result.get('ai_analysis', 'Computational analysis'))
             result['key_factors'] = result.get('key_factors', ['Price Action'])
             
+            # Store this analysis in memory for future context
+            add_to_analysis_memory(
+                current_price, 
+                result['signal'], 
+                result['confidence'], 
+                result['reasoning']
+            )
+            
             return result
             
         except (json.JSONDecodeError, ValueError, KeyError) as e:
@@ -392,7 +403,34 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
             "take_profit": current_price * 1.04
         }
 
-def calculate_position_size(entry: float, stop_loss: float, risk_amount: float) -> float:
+def add_to_analysis_memory(price: float, signal: str, confidence: int, reasoning: str):
+    """Store analysis decision in memory (last 30)"""
+    global analysis_memory
+    
+    memory_entry = {
+        "timestamp": datetime.now(IST).strftime("%H:%M:%S"),
+        "price": price,
+        "signal": signal,
+        "confidence": confidence,
+        "reasoning": reasoning[:100]  # Truncate for memory efficiency
+    }
+    
+    analysis_memory.append(memory_entry)
+    
+    # Keep only last 30 analyses
+    if len(analysis_memory) > 30:
+        analysis_memory = analysis_memory[-30:]
+
+def get_analysis_memory_for_gemini() -> str:
+    """Format recent analysis memory for Gemini context"""
+    if not analysis_memory:
+        return "No previous analysis memory available."
+    
+    memory_text = "RECENT ANALYSIS MEMORY (Your last decisions):\n"
+    for entry in analysis_memory[-10:]:  # Show last 10 for context
+        memory_text += f"{entry['timestamp']}: ${entry['price']} -> {entry['signal']} (Conf: {entry['confidence']}/10)\n"
+    
+    return memory_text
     """Calculate position size for risk management"""
     risk_per_unit = abs(entry - stop_loss)
     if risk_per_unit > 0:
