@@ -438,7 +438,8 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
         "status": "open",
         "capital_before": demo_balance,  # Track capital before trade
         "capital_after": demo_balance,   # Will update when closed
-        "total_pnl": demo_balance - 10000.0  # Running total P&L
+        "total_pnl": demo_balance - 10000.0,  # Running total P&L
+        "trade_result": "OPEN"  # Easy status indicator
     }
     
     if trades_supabase:
@@ -488,6 +489,9 @@ async def close_position(exit_price: float, reason: str):
     # Update separate trades database with LIVE CAPITAL
     if trades_supabase:
         try:
+            # Determine trade result for easy viewing
+            trade_result = "PROFIT" if pnl > 0 else "LOSS" if pnl < 0 else "BREAKEVEN"
+            
             trades_supabase.table("paper_trades").update({
                 "exit_price": exit_price,
                 "exit_time": current_position.exit_time.isoformat(),
@@ -495,7 +499,8 @@ async def close_position(exit_price: float, reason: str):
                 "status": "closed",
                 "close_reason": reason,
                 "capital_after": demo_balance,  # Update final capital
-                "total_pnl": demo_balance - 10000.0  # Running total P&L
+                "total_pnl": demo_balance - 10000.0,  # Running total P&L
+                "trade_result": trade_result  # Easy profit/loss indicator
             }).eq("trade_id", total_trades).execute()
             
             print(f"📊 CLOSED #{total_trades}: ${exit_price:.0f} | PnL: ${pnl:.2f} | Capital: ${demo_balance:.2f} | {reason}")
