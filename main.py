@@ -478,11 +478,6 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     else:
         print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
         print(f"⚠️ NO TRADES DATABASE CONNECTION")
-            # Fallback to local storage
-            save_trade_locally(trade_data)
-    else:
-        # Fallback to local storage
-        save_trade_locally(trade_data)
         print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
         print("⚠️ Using local storage - no trades DB configured")
     
