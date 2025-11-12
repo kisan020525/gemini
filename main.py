@@ -249,7 +249,7 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         # Unleash full AI analytical power with PAST PERFORMANCE
         prompt = f"""
         You are an advanced AI SCALPING TRADER analyzing Bitcoin for HIGH-CONFIDENCE opportunities.
-        
+
         SCALPING STRATEGY:
         - ONLY trade when 80%+ confident (confidence: 8-10)
         - Target small, quick profits ($20-50 per trade)
@@ -257,9 +257,10 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         - Focus on clear momentum and strong signals
         - Better to wait than take low-confidence trades
         - Use tight stop losses ($15-30) to minimize risk
-        
+        - Avoid premature exits — once a trade is active, wait for it to hit either TP or SL
+
         IMPORTANT: Set confidence to 8+ ONLY when you see clear, strong signals.
-        
+
         Current Bitcoin price: ${current_price:.0f}
 
         {await get_past_trades_for_gemini()}
@@ -269,21 +270,30 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
 
         ANALYSIS DIRECTIVE:
         Learn from your past trades! Use your FULL AI knowledge base and PAST PERFORMANCE to make better decisions.
-        
+
         Apply every relevant concept:
         - Mathematical models (statistics, probability, regression, neural patterns)
-        - Technical analysis (all indicators, patterns, oscillators)  
-        - Market psychology (sentiment analysis, crowd behavior)
+        - Technical analysis (indicators, patterns, oscillators)
+        - Market psychology (sentiment, crowd behavior)
         - Your own trading history and mistakes
         - Risk management based on past performance
+        - Avoid premature exits; follow your system strictly once a trade is placed
+
+        ANALYSIS IMPROVEMENT DIRECTIVE:
+        Use your internal knowledge base to identify which analytical concepts best apply to the current market.
+        Evaluate multiple methods (statistical, technical, psychological) and select only the 2–3 most relevant for current conditions.
+        Briefly explain why those were selected.
+        Estimate probabilities for each possible direction (up, down, neutral) and choose the highest-probability action.
 
         COMPUTATIONAL APPROACH:
         1. Review your past performance and learn from mistakes
-        2. Process ALL candle data simultaneously
+        2. Process ALL 6,000 candle data points simultaneously
         3. Identify patterns across multiple timeframes
-        4. Calculate probabilities based on historical success
-        5. Optimize risk-adjusted returns from experience
-        6. Only trade when you have HIGH CONFIDENCE (8+)
+        4. Select the best-fit analytical concepts for the current conditions
+        5. Calculate probabilities based on historical success
+        6. Optimize risk-adjusted returns from experience
+        7. Only trade when you have HIGH CONFIDENCE (8+)
+        8. Avoid premature exits — TP or SL must decide the outcome
 
         IMPORTANT: You can only have ONE TRADE AT A TIME. If you're not very confident (8+), choose HOLD.
 
@@ -291,17 +301,17 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         {{
             "thinking": "Step-by-step reasoning: 1) Market analysis... 2) Past performance review... 3) Risk assessment... 4) Final decision...",
             "performance_analysis": "What you learned from past trades",
-            "market_analysis": "Current market assessment", 
+            "market_analysis": "Current market assessment and key concepts used", 
             "signal": "BUY/SELL/HOLD",
             "confidence": 1-10,
             "entry": {current_price},
             "stop_loss": price,
             "take_profit": price,
             "risk_reward_ratio": "1:X",
-            "reasoning": "Why this trade based on analysis + past performance"
+            "reasoning": "Why this trade was chosen, which concepts were used, and how probability supports it"
         }}
 
-        LEARN FROM YOUR MISTAKES. ONLY TRADE WITH HIGH CONFIDENCE.
+        LEARN FROM YOUR MISTAKES. ONLY TRADE WITH HIGH CONFIDENCE. AVOID PREMATURE EXITS.
         """
         
         response = model.generate_content(prompt)
