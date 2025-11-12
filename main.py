@@ -586,38 +586,39 @@ async def check_stop_loss_take_profit(current_candle: Dict):
     # print(f"🤖 Lite AI Decision: {decision.get('action')} | Urgency: {decision.get('urgency')}/10")
     # print(f"💭 Reasoning: {decision.get('reasoning', 'N/A')[:60]}...")
     
-    # Only check natural TP/SL levels - no AI interference
+    # Check only natural TP/SL levels
     decision = {'action': 'HOLD'}
     
-    # Execute AI decision
-    if decision.get('action') == 'CLOSE':
-        # Determine close price based on SL/TP logic
-        if current_position.direction == 'long':
-            if candle_low <= current_position.stop_loss:
-                close_price = current_position.stop_loss
-                reason = "AI Stop Loss"
-            elif candle_high >= current_position.take_profit:
-                close_price = current_position.take_profit
-                reason = "AI Take Profit"
-            else:
-                close_price = current_price
-                reason = "AI Market Close"
-        else:  # short
-            if candle_high >= current_position.stop_loss:
-                close_price = current_position.stop_loss
-                reason = "AI Stop Loss"
-            elif candle_low <= current_position.take_profit:
-                close_price = current_position.take_profit
-                reason = "AI Take Profit"
-            else:
-                close_price = current_price
-                reason = "AI Market Close"
-        
-        print(f"🚨 AI CLOSING POSITION: {reason} at ${close_price:.0f}")
+    # ALWAYS check natural stop loss and take profit levels
+    should_close = False
+    close_price = current_price
+    reason = "Hold"
+    
+    if current_position.direction == 'long':
+        if candle_low <= current_position.stop_loss:
+            should_close = True
+            close_price = current_position.stop_loss
+            reason = "Stop Loss"
+        elif candle_high >= current_position.take_profit:
+            should_close = True
+            close_price = current_position.take_profit
+            reason = "Take Profit"
+    else:  # short
+        if candle_high >= current_position.stop_loss:
+            should_close = True
+            close_price = current_position.stop_loss
+            reason = "Stop Loss"
+        elif candle_low <= current_position.take_profit:
+            should_close = True
+            close_price = current_position.take_profit
+            reason = "Take Profit"
+    
+    if should_close:
+        print(f"🚨 NATURAL {reason.upper()}: Closing at ${close_price:.0f}")
         await close_position(close_price, reason)
         return
     
-    print(f"✅ AI Decision: Hold position")
+    print(f"✅ Position held: {current_position.direction.upper()} @ ${current_position.entry_price:.0f} | Current: ${current_price:.0f}")
 
 async def print_stats():
     """Print trading statistics"""
