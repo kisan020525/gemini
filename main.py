@@ -222,7 +222,7 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
             print("🚫 No API keys available, skipping analysis")
             return {"signal": "HOLD", "confidence": 0, "reasoning": "No API keys available"}
         
-        # Configure Gemini 2.5 Flash with structured output
+        # Configure Gemini 2.5 Flash with structured output and thinking mode
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(
             'gemini-2.5-flash-preview-09-2025',
@@ -231,6 +231,7 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
                 "response_schema": {
                     "type": "object",
                     "properties": {
+                        "thinking": {"type": "string"},
                         "signal": {"type": "string"},
                         "confidence": {"type": "integer"},
                         "entry": {"type": "number"},
@@ -239,9 +240,10 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
                         "analysis": {"type": "string"},
                         "reasoning": {"type": "string"}
                     },
-                    "required": ["signal", "confidence", "entry", "stop_loss", "take_profit", "analysis", "reasoning"]
+                    "required": ["thinking", "signal", "confidence", "entry", "stop_loss", "take_profit", "analysis", "reasoning"]
                 }
-            }
+            },
+            system_instruction="Use the 'thinking' field to show your step-by-step reasoning process before making trading decisions. Think through market patterns, past performance, and risk analysis."
         )
         
         # Unleash full AI analytical power with PAST PERFORMANCE
@@ -287,6 +289,7 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
 
         JSON RESPONSE:
         {{
+            "thinking": "Step-by-step reasoning: 1) Market analysis... 2) Past performance review... 3) Risk assessment... 4) Final decision...",
             "performance_analysis": "What you learned from past trades",
             "market_analysis": "Current market assessment", 
             "signal": "BUY/SELL/HOLD",
@@ -863,9 +866,9 @@ async def main():
                 signal = await get_gemini_signal(candles_data, current_price)
                 
                 print(f"🧠 Gemini: {signal.get('signal')} | Confidence: {signal.get('confidence')}/10")
-                print(f"🤖 AI Analysis: {signal.get('ai_analysis', 'N/A')[:80]}...")
-                print(f"📊 Success Prob: {signal.get('probability_success', 'N/A')} | R:R: {signal.get('risk_reward_ratio', 'N/A')}")
-                print(f"🔍 Key Factors: {', '.join(signal.get('key_factors', [])[:3])}...")
+                print(f"💭 AI Thinking: {signal.get('thinking', 'N/A')[:100]}...")
+                print(f"🤖 AI Analysis: {signal.get('analysis', 'N/A')[:80]}...")
+                print(f"📊 Reasoning: {signal.get('reasoning', 'N/A')[:80]}...")
                 
                 # Execute trade if signal is strong
                 await execute_trade(signal, current_price)
