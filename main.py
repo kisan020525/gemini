@@ -524,6 +524,7 @@ async def close_position(exit_price: float, reason: str):
                 "exit_price": exit_price,
                 "exit_time": current_position.exit_time.isoformat(),
                 "pnl": pnl,
+                "profit_loss_usd": round(pnl, 2),  # Clear USD profit/loss
                 "status": "closed",
                 "close_reason": reason,
                 "capital_after": demo_balance,  # Update final capital
