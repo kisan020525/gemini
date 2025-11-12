@@ -469,11 +469,15 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     
     if trades_supabase:
         try:
-            trades_supabase.table("paper_trades").insert(trade_data).execute()
+            result = trades_supabase.table("paper_trades").insert(trade_data).execute()
             print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
+            print(f"✅ Trade saved to database successfully")
         except Exception as e:
             print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
-            print(f"⚠️ Trades DB error: {str(e)}")
+            print(f"❌ TRADES DB ERROR: {str(e)}")
+    else:
+        print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
+        print(f"⚠️ NO TRADES DATABASE CONNECTION")
             # Fallback to local storage
             save_trade_locally(trade_data)
     else:
