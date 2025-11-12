@@ -43,7 +43,6 @@ GEMINI_LITE_API_KEYS = [
 DEMO_CAPITAL = 10000.0
 RISK_PER_TRADE = 0.005  # 0.5% risk per trade for scalping (was 2%)
 ANALYSIS_INTERVAL = 60  # 1 minute for frequent trade entries
-COOLING_PERIOD = 300  # 5 minutes cooling period after closing trades
 
 # IST timezone
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -69,7 +68,6 @@ lite_key_daily_reset = [0] * 2
 current_position = None
 demo_balance = 10000.0  # Starting capital
 total_trades = 0        # Reset trade counter
-last_trade_close_time = None  # Track cooling period
 winning_trades = 0      # Reset win counter
 
 class Trade:
@@ -250,18 +248,22 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         
         # Unleash full AI analytical power with PAST PERFORMANCE
         prompt = f"""
-        You are an advanced AI SCALPING TRADER analyzing Bitcoin for HIGH-CONFIDENCE opportunities.
+        You are an advanced AI SCALPING TRADER analyzing Bitcoin for EXCEPTIONAL opportunities.
 
-        SCALPING STRATEGY:
-        - ONLY trade when 90%+ confident (confidence: 9-10)
-        - Target meaningful profits ($80-150 per trade)
-        - Use proper stop losses ($50-80) to avoid noise
-        - Focus on clear momentum and strong signals
-        - Better to wait than take low-confidence trades
-        - Minimum 1:2 Risk/Reward ratio required
-        - Hold positions for 5-15 minutes minimum
+        TRADING DISCIPLINE:
+        - ONLY trade when 90%+ confident (confidence: 9-10) 
+        - You DON'T need to trade every analysis - WAIT for perfect setups
+        - Quality over quantity - Better to miss trades than take bad ones
+        - Target meaningful profits ($80-200 per trade)
+        - Use optimal risk/reward ratios (minimum 1:2, prefer 1:3)
+        - Adjust stop loss and take profit based on your confidence level:
+          * Confidence 9/10: Use 1:2 risk/reward (conservative)
+          * Confidence 10/10: Use 1:3 risk/reward (aggressive)
 
-        IMPORTANT: Set confidence to 9+ ONLY when you see VERY clear, strong signals.
+        IMPORTANT: 
+        - Set confidence to 9+ ONLY when you see CRYSTAL CLEAR signals
+        - If you're not 90%+ sure, choose HOLD - there's always another opportunity
+        - Don't force trades - patience is profitable
 
         Current Bitcoin price: ${current_price:.0f}
 
@@ -405,14 +407,6 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     """Execute paper trade - STRICTLY ONE AT A TIME"""
     global current_position, demo_balance, total_trades
     
-    # Check cooling period - prevent overtrading
-    if last_trade_close_time:
-        time_since_last_close = (datetime.now(IST) - last_trade_close_time).total_seconds()
-        if time_since_last_close < COOLING_PERIOD:
-            remaining_time = int(COOLING_PERIOD - time_since_last_close)
-            print(f"🧊 COOLING PERIOD: Wait {remaining_time}s before next trade (prevents overtrading)")
-            return None
-    
     # Only trade with VERY HIGH confidence (9+ out of 10 = 90%+)
     if signal['signal'] == 'HOLD' or signal['confidence'] < 9:
         if current_position and current_position.status == 'open':
@@ -495,13 +489,10 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
 
 async def close_position(exit_price: float, reason: str):
     """Close current position"""
-    global current_position, demo_balance, winning_trades, last_trade_close_time
+    global current_position, demo_balance, winning_trades
     
     if not current_position or current_position.status != 'open':
         return
-    
-    # Record close time for cooling period
-    last_trade_close_time = datetime.now(IST)
     
     # Calculate PnL with validation
     if current_position.direction == 'long':
