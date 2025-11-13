@@ -56,10 +56,10 @@ trades_supabase = create_client(TRADES_SUPABASE_URL, TRADES_SUPABASE_KEY) if TRA
 
 # API Key rotation for both models
 current_api_key_index = 0
-api_key_last_used = [0] * 6   # Track last usage time
-api_key_daily_count = [0] * 6  # Track daily usage
-api_key_daily_reset = [0] * 6  # Track daily reset time
-api_key_usage_count = [0] * 6  # Legacy compatibility
+api_key_last_used = [0] * 9   # Track last usage time for 9 keys
+api_key_daily_count = [0] * 9  # Track daily usage for 9 keys
+api_key_daily_reset = [0] * 9  # Track daily reset time for 9 keys
+api_key_usage_count = [0] * 9  # Legacy compatibility for 9 keys
 
 # Lite model rotation
 current_lite_key_index = 0
@@ -135,7 +135,7 @@ def get_next_api_key() -> str:
     current_time = time.time()
     
     # Reset daily counters (every 24 hours)
-    for i in range(6):
+    for i in range(9):
         if current_time - api_key_daily_reset[i] > 86400:  # 24 hours
             api_key_daily_count[i] = 0
             api_key_daily_reset[i] = current_time
