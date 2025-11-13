@@ -7,11 +7,11 @@ import os
 import asyncio
 import json
 import time
+import aiohttp
+import requests
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
-from google import genai
-from google.genai import types
-import google.generativeai as old_genai  # Keep old SDK for Flash
+import google.generativeai as genai
 from supabase import create_client
 from dotenv import load_dotenv
 
@@ -279,7 +279,7 @@ def format_candles_for_gemini(candles: List[Dict]) -> str:
     return formatted_data
 
 async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry_count: int = 0) -> Dict:
-    """Get strategic analysis from Gemini 2.5 Pro using new GenAI SDK"""
+    """Get strategic analysis from Gemini 2.5 Pro using direct HTTP API"""
     global pro_analysis_memory, last_pro_analysis
     
     # Prevent infinite retries - max 3 attempts
@@ -293,9 +293,6 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
         if not api_key:
             print("🚫 No Pro API keys available, using last analysis")
             return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "No Pro API available"}
-        
-        # Configure new GenAI client
-        client = genai.Client(api_key=api_key)
         
         prompt = f"""
         You are GEMINI 2.5 PRO - Strategic Master AI for Bitcoin Trading.
@@ -315,35 +312,60 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
         }}
         """
         
-        contents = [
-            types.Content(
-                role="user",
-                parts=[types.Part.from_text(text=prompt)],
-            ),
-        ]
+        # Direct HTTP API request
+        request_data = {
+            "contents": [{
+                "role": "user",
+                "parts": [{"text": prompt}]
+            }],
+            "generationConfig": {
+                "thinkingConfig": {"thinkingBudget": -1},
+                "response_mime_type": "application/json"
+            }
+        }
         
-        # Generate content with new SDK
-        response = client.models.generate_content(
-            model="gemini-2.5-pro",
-            contents=contents,
+        response = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?key={api_key}",
+            headers={"Content-Type": "application/json"},
+            json=request_data,
+            timeout=30
         )
         
-        try:
-            pro_analysis = json.loads(response.text.strip())
-            pro_analysis['timestamp'] = datetime.now(IST).isoformat()
-            pro_analysis['model'] = 'Pro'
+        if response.status_code == 200:
+            # Parse streaming response
+            response_text = ""
+            for line in response.text.split('\n'):
+                if line.strip() and line.startswith('data: '):
+                    try:
+                        data = json.loads(line[6:])
+                        if 'candidates' in data and data['candidates']:
+                            if 'content' in data['candidates'][0]:
+                                if 'parts' in data['candidates'][0]['content']:
+                                    for part in data['candidates'][0]['content']['parts']:
+                                        if 'text' in part:
+                                            response_text += part['text']
+                    except:
+                        continue
             
-            # Store in memory
-            pro_analysis_memory.append(pro_analysis)
-            if len(pro_analysis_memory) > 10:
-                pro_analysis_memory.pop(0)
-            
-            last_pro_analysis = pro_analysis
-            return pro_analysis
-            
-        except json.JSONDecodeError:
-            print("❌ Pro JSON decode error")
-            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro JSON error"}
+            try:
+                pro_analysis = json.loads(response_text.strip())
+                pro_analysis['timestamp'] = datetime.now(IST).isoformat()
+                pro_analysis['model'] = 'Pro'
+                
+                # Store in memory
+                pro_analysis_memory.append(pro_analysis)
+                if len(pro_analysis_memory) > 10:
+                    pro_analysis_memory.pop(0)
+                
+                last_pro_analysis = pro_analysis
+                return pro_analysis
+                
+            except json.JSONDecodeError:
+                print("❌ Pro JSON decode error")
+                return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro JSON error"}
+        else:
+            print(f"❌ Pro API error: {response.status_code}")
+            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": f"Pro API error {response.status_code}"}
             
     except Exception as e:
         error_msg = str(e)
