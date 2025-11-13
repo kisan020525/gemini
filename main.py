@@ -9,7 +9,9 @@ import json
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
-import google.generativeai as genai
+from google import genai
+from google.genai import types
+import google.generativeai as old_genai  # Keep old SDK for Flash
 from supabase import create_client
 from dotenv import load_dotenv
 
@@ -264,7 +266,7 @@ def format_candles_for_gemini(candles: List[Dict]) -> str:
     return formatted_data
 
 async def get_gemini_pro_analysis(candles_data: str, current_price: float) -> Dict:
-    """Get strategic analysis from Gemini 2.5 Pro (every 2 minutes)"""
+    """Get strategic analysis from Gemini 2.5 Pro using new GenAI SDK"""
     global pro_analysis_memory, last_pro_analysis
     
     try:
@@ -274,42 +276,8 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float) -> Di
             print("🚫 No Pro API keys available, using last analysis")
             return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "No Pro API available"}
         
-        # Configure Gemini 2.5 Pro
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(
-            'gemini-2.5-pro',  # Correct Pro model
-            generation_config={
-                "response_mime_type": "application/json",
-                "response_schema": {
-                    "type": "object",
-                    "properties": {
-                        "strategic_thinking": {"type": "string"},
-                        "market_analysis": {"type": "string"},
-                        "trend_direction": {"type": "string"},
-                        "key_levels": {
-                            "type": "object",
-                            "properties": {
-                                "support": {"type": "number"},
-                                "resistance": {"type": "number"},
-                                "pivot": {"type": "number"}
-                            }
-                        },
-                        "entry_conditions": {"type": "string"},
-                        "risk_assessment": {"type": "string"},
-                        "signal": {"type": "string"},
-                        "confidence": {"type": "integer"},
-                        "entry": {"type": "number"},
-                        "stop_loss": {"type": "number"},
-                        "take_profit": {"type": "number"},
-                        "position_size_recommendation": {"type": "number"},
-                        "time_horizon": {"type": "string"},
-                        "reasoning": {"type": "string"}
-                    },
-                    "required": ["strategic_thinking", "market_analysis", "trend_direction", "signal", "confidence", "entry", "stop_loss", "take_profit", "reasoning"]
-                }
-            },
-            system_instruction="You are Gemini 2.5 Pro - the STRATEGIC MASTER AI. Provide deep market analysis and strategic direction for the Flash model to execute."
-        )
+        # Configure new GenAI client
+        client = genai.Client(api_key=api_key)
         
         # Get Flash's recent analysis for context
         flash_context = ""
@@ -344,9 +312,43 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float) -> Di
         - Time horizon for the strategy
         
         Flash model will see your COMPLETE response and use it for tactical decisions.
+        
+        Respond in JSON format:
+        {{
+            "strategic_thinking": "Your deep analysis process",
+            "market_analysis": "Complete market assessment",
+            "trend_direction": "Overall trend direction",
+            "key_levels": {{"support": 100000, "resistance": 105000, "pivot": 102500}},
+            "entry_conditions": "When to enter trades",
+            "risk_assessment": "Risk factors and management",
+            "signal": "LONG/SHORT/HOLD",
+            "confidence": 1-10,
+            "entry": {current_price},
+            "stop_loss": price_level,
+            "take_profit": price_level,
+            "position_size_recommendation": 0.5,
+            "time_horizon": "Short/Medium/Long term",
+            "reasoning": "Strategic reasoning for Flash model"
+        }}
         """
         
-        response = model.generate_content(prompt)
+        contents = [
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=prompt)],
+            ),
+        ]
+        
+        generate_content_config = types.GenerateContentConfig(
+            thinking_config=types.ThinkingConfig(thinking_budget=-1),
+        )
+        
+        # Generate content
+        response = client.models.generate_content(
+            model="gemini-2.5-pro",
+            contents=contents,
+            config=generate_content_config,
+        )
         
         try:
             pro_analysis = json.loads(response.text.strip())
@@ -371,7 +373,7 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float) -> Di
         error_msg = str(e)
         if "429" in error_msg or "quota" in error_msg.lower():
             # Mark this API key as rate limited
-            current_key_index = (current_api_key_index - 1) % 15
+            current_key_index = (current_pro_key_index) % 15
             api_key_rate_limited[current_key_index] = time.time()
             print(f"⏳ API Key #{current_key_index + 1} rate limited - marked for 5min cooldown")
         
@@ -387,8 +389,8 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
             return {"signal": "HOLD", "confidence": 0, "reasoning": "No API keys available"}
         
         # Configure Gemini 2.5 Flash with structured output and thinking mode
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(
+        old_genai.configure(api_key=api_key)
+        model = old_genai.GenerativeModel(
             'gemini-2.5-flash-preview-09-2025',
             generation_config={
                 "response_mime_type": "application/json",
