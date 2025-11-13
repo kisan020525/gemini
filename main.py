@@ -332,20 +332,31 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
         )
         
         if response.status_code == 200:
-            # Parse streaming response
+            # Parse streaming response - get the last complete JSON
             response_text = ""
             for line in response.text.split('\n'):
                 if line.strip() and line.startswith('data: '):
                     try:
                         data = json.loads(line[6:])
                         if 'candidates' in data and data['candidates']:
-                            if 'content' in data['candidates'][0]:
-                                if 'parts' in data['candidates'][0]['content']:
-                                    for part in data['candidates'][0]['content']['parts']:
-                                        if 'text' in part:
-                                            response_text += part['text']
+                            candidate = data['candidates'][0]
+                            if 'content' in candidate and 'parts' in candidate['content']:
+                                for part in candidate['content']['parts']:
+                                    if 'text' in part:
+                                        response_text += part['text']
                     except:
                         continue
+            
+            # If streaming failed, try direct response
+            if not response_text:
+                try:
+                    data = response.json()
+                    if 'candidates' in data and data['candidates']:
+                        candidate = data['candidates'][0]
+                        if 'content' in candidate and 'parts' in candidate['content']:
+                            response_text = candidate['content']['parts'][0]['text']
+                except:
+                    pass
             
             try:
                 pro_analysis = json.loads(response_text.strip())
