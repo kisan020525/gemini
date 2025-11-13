@@ -1,6 +1,6 @@
 """
 Gemini 2.5 Flash Trading Bot - Multi-API Key Version
-9 API keys rotation for 2250 RPD (250 x 9) = Every minute analysis with buffer
+13 API keys rotation for 3250 RPD (250 x 13) = 48+ hours continuous operation
 """
 
 import os
@@ -23,7 +23,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 TRADES_SUPABASE_URL = os.getenv("TRADES_SUPABASE_URL")
 TRADES_SUPABASE_KEY = os.getenv("TRADES_SUPABASE_KEY")
 
-# 9 Gemini API Keys for analysis (250 RPD each = 2250 total)
+# 13 Gemini API Keys for analysis (250 RPD each = 3250 total)
 GEMINI_API_KEYS = [
     os.getenv("GEMINI_API_KEY_1"),
     os.getenv("GEMINI_API_KEY_2"), 
@@ -31,9 +31,13 @@ GEMINI_API_KEYS = [
     os.getenv("GEMINI_API_KEY_4"),
     os.getenv("GEMINI_API_KEY_5"),
     os.getenv("GEMINI_API_KEY_6"),
-    os.getenv("GEMINI_API_KEY_7"),  # New key
-    os.getenv("GEMINI_API_KEY_8"),  # New key
-    os.getenv("GEMINI_API_KEY_9")   # New key
+    os.getenv("GEMINI_API_KEY_7"),
+    os.getenv("GEMINI_API_KEY_8"),
+    os.getenv("GEMINI_API_KEY_9"),
+    os.getenv("GEMINI_API_KEY_10"),
+    os.getenv("GEMINI_API_KEY_11"),
+    os.getenv("GEMINI_API_KEY_12"),
+    os.getenv("GEMINI_API_KEY_13")
 ]
 
 # 2 Gemini Lite API Keys for trade management (1000 RPD each = 2000 total)
@@ -56,10 +60,10 @@ trades_supabase = create_client(TRADES_SUPABASE_URL, TRADES_SUPABASE_KEY) if TRA
 
 # API Key rotation for both models
 current_api_key_index = 0
-api_key_last_used = [0] * 9   # Track last usage time for 9 keys
-api_key_daily_count = [0] * 9  # Track daily usage for 9 keys
-api_key_daily_reset = [0] * 9  # Track daily reset time for 9 keys
-api_key_usage_count = [0] * 9  # Legacy compatibility for 9 keys
+api_key_last_used = [0] * 13   # Track last usage time for 13 keys
+api_key_daily_count = [0] * 13  # Track daily usage for 13 keys
+api_key_daily_reset = [0] * 13  # Track daily reset time for 13 keys
+api_key_usage_count = [0] * 13  # Legacy compatibility for 13 keys
 
 # Lite model rotation
 current_lite_key_index = 0
@@ -135,7 +139,7 @@ def get_next_api_key() -> str:
     current_time = time.time()
     
     # Reset daily counters (every 24 hours)
-    for i in range(9):
+    for i in range(13):
         if current_time - api_key_daily_reset[i] > 86400:  # 24 hours
             api_key_daily_count[i] = 0
             api_key_daily_reset[i] = current_time
@@ -143,9 +147,9 @@ def get_next_api_key() -> str:
     
     # Find available API key with strict limits
     for attempt in range(6):
-        key_index = (current_api_key_index + attempt) % 9
+        key_index = (current_api_key_index + attempt) % 13
         
-        # Check daily limit (max 250 per day per key = 2250 total)
+        # Check daily limit (max 250 per day per key = 3250 total)
         if api_key_daily_count[key_index] >= 250:
             continue
             
@@ -711,7 +715,7 @@ async def print_stats():
     
     # Show API key usage
     total_daily_usage = sum(api_key_daily_count)
-    print(f"📈 Balance: ${demo_balance:.0f} | Return: {total_return:.1f}% | Trades: {total_trades} | Win: {win_rate:.0f}% | API: {total_daily_usage}/2250")
+    print(f"📈 Balance: ${demo_balance:.0f} | Return: {total_return:.1f}% | Trades: {total_trades} | Win: {win_rate:.0f}% | API: {total_daily_usage}/3250")
 
 async def wait_for_new_candle(last_candle_time: str) -> bool:
     """Wait for new candle to be added to Supabase"""
@@ -917,7 +921,7 @@ async def main():
     print("🕐 Triggered by new candle updates")
     
     valid_keys = [key for key in GEMINI_API_KEYS if key]
-    print(f"🔑 API Keys loaded: {len(valid_keys)}/9")
+    print(f"🔑 API Keys loaded: {len(valid_keys)}/13")
     
     if len(valid_keys) == 0:
         print("❌ No API keys found!")
