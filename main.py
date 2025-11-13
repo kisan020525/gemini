@@ -142,7 +142,7 @@ def get_next_lite_api_key() -> str:
     return None
 
 def get_next_api_key(model_type="flash") -> str:
-    """Get next available API key for Pro or Flash model"""
+    """Get next available API key for Pro or Flash model with proper rotation"""
     global current_api_key_index, api_key_last_used, api_key_daily_count_pro, api_key_daily_count_flash, api_key_daily_reset
     
     current_time = time.time()
@@ -159,28 +159,27 @@ def get_next_api_key(model_type="flash") -> str:
     if model_type == "pro":
         daily_limit = 50  # Pro model: 50 RPD per key
         daily_count = api_key_daily_count_pro
-        min_interval = 120  # 2 minutes between Pro calls
+        min_interval = 180  # 3 minutes between Pro calls (safer)
     else:  # flash
         daily_limit = 250  # Flash model: 250 RPD per key
         daily_count = api_key_daily_count_flash
         min_interval = 60  # 1 minute between Flash calls
     
-    # Find available API key (try all 15 keys for Pro)
-    max_attempts = 15 if model_type == "pro" else 15
-    for attempt in range(max_attempts):
+    # Try all 15 keys in sequence for proper rotation
+    for attempt in range(15):
         key_index = (current_api_key_index + attempt) % 15
         
         # Check daily limit
         if daily_count[key_index] >= daily_limit:
             continue
             
-        # Check minimum time between calls
+        # Check minimum time between calls for this specific key
         time_since_last = current_time - api_key_last_used[key_index]
         if time_since_last < min_interval:
             continue
         
-        # This key is available
-        current_api_key_index = key_index
+        # This key is available - use it and update rotation
+        current_api_key_index = (key_index + 1) % 15  # Move to next key for next call
         api_key_last_used[key_index] = current_time
         daily_count[key_index] += 1
         
