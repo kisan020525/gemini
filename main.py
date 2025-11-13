@@ -257,7 +257,7 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float) -> Di
         # Configure Gemini 2.5 Pro
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(
-            'gemini-2.0-flash-exp',  # Using Pro model
+            'gemini-1.5-pro-002',  # Using actual Pro model
             generation_config={
                 "response_mime_type": "application/json",
                 "response_schema": {
