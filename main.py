@@ -616,6 +616,8 @@ async def open_new_position(signal: Dict, current_price: float, direction: str) 
     take_profit = signal.get('take_profit', current_price * 1.04)
     direction = 'long' if signal['signal'] == 'BUY' else 'short'
     
+    print(f"🔍 DEBUG: Direction={direction} | Entry=${entry} | SL=${stop_loss} | TP=${take_profit}")
+    
     # Validate SL/TP logic
     if direction == 'long' and stop_loss >= entry:
         print(f"⚠️ Invalid LONG setup: SL ${stop_loss} should be < entry ${entry}")
