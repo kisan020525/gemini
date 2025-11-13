@@ -386,7 +386,10 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
             api_key_rate_limited[current_key_index] = time.time()
             print(f"⏳ Pro Key #{current_key_index + 1} overloaded - trying next key")
             
-            # Try next key immediately (with retry limit)
+            # Wait 30 seconds before trying next key to avoid rapid calls
+            await asyncio.sleep(30)
+            
+            # Try next key (with retry limit)
             pro_key_call_count = 49  # Force rotation to next key
             return await get_gemini_pro_analysis(candles_data, current_price, retry_count + 1)
         
