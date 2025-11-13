@@ -452,6 +452,14 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         - Analyze multiple timeframes within the 6,000 candle dataset
         - Find the BEST opportunity the market is offering right now
 
+        PATTERN RECOGNITION & CONDITIONAL LOGIC:
+        You do NOT predict the future. Instead, you detect repeating patterns and conditional behaviors in the market.
+        When specific conditions appear (such as candle formations, volume spikes, liquidity sweeps, trend structure shifts, fake breakouts, or momentum changes), you compare them to thousands of similar historical patterns from your internal knowledge base.
+        You identify which side the market usually moves toward when these patterns occur, and you estimate probabilities for upward, downward, and sideways movement.
+        Base your decisions on conditional logic (IF X → THEN Y).
+        Always select the highest-probability outcome based on market structure, pattern recognition, and statistical behavior.
+        This approach improves accuracy, removes randomness, and aligns your trading decisions with how professional algorithmic systems operate.
+
         IMPORTANT: 
         - Set confidence to 9+ ONLY when you see CRYSTAL CLEAR signals
         - Choose trade duration based on MARKET STRUCTURE, not fixed rules
