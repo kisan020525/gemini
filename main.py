@@ -614,9 +614,17 @@ async def open_new_position(signal: Dict, current_price: float, direction: str) 
     entry = signal.get('entry', current_price)
     stop_loss = signal.get('stop_loss', current_price * 0.98)
     take_profit = signal.get('take_profit', current_price * 1.04)
-    direction = 'long' if signal['signal'] == 'BUY' else 'short'
     
-    print(f"🔍 DEBUG: Direction={direction} | Entry=${entry} | SL=${stop_loss} | TP=${take_profit}")
+    # Fix direction logic for all signal types
+    signal_type = signal.get('signal', 'HOLD')
+    if signal_type in ['BUY', 'OPEN_LONG', 'CLOSE_AND_LONG']:
+        direction = 'long'
+    elif signal_type in ['SELL', 'OPEN_SHORT', 'CLOSE_AND_SHORT']:
+        direction = 'short'
+    else:
+        direction = direction  # Use the passed direction parameter
+    
+    print(f"🔍 DEBUG: Signal={signal_type} | Direction={direction} | Entry=${entry} | SL=${stop_loss} | TP=${take_profit}")
     
     # Validate SL/TP logic
     if direction == 'long' and stop_loss >= entry:
