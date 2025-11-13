@@ -312,68 +312,45 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
         }}
         """
         
-        # Direct HTTP API request
-        request_data = {
-            "contents": [{
-                "role": "user",
-                "parts": [{"text": prompt}]
-            }],
-            "generationConfig": {
-                "thinkingConfig": {"thinkingBudget": -1},
-                "response_mime_type": "application/json"
+        # Configure Gemini Pro with Python SDK
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            'gemini-2.5-pro',
+            generation_config={
+                "response_mime_type": "application/json",
+                "response_schema": {
+                    "type": "object",
+                    "properties": {
+                        "signal": {"type": "string"},
+                        "confidence": {"type": "integer"},
+                        "entry": {"type": "number"},
+                        "stop_loss": {"type": "number"},
+                        "take_profit": {"type": "number"},
+                        "trend_direction": {"type": "string"},
+                        "reasoning": {"type": "string"}
+                    }
+                }
             }
-        }
-        
-        response = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={api_key}",
-            headers={"Content-Type": "application/json"},
-            json=request_data,
-            timeout=30
         )
         
-        if response.status_code == 200:
-            try:
-                data = response.json()
-                if 'candidates' in data and data['candidates']:
-                    candidate = data['candidates'][0]
-                    if 'content' in candidate and 'parts' in candidate['content']:
-                        response_text = candidate['content']['parts'][0]['text']
-                        print(f"🔍 Pro Response: {response_text[:200]}...")  # Debug log
-                    else:
-                        print("❌ Pro response missing content/parts")
-                        return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro response malformed"}
-                else:
-                    print("❌ Pro response missing candidates")
-                    return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro response missing candidates"}
-            except Exception as e:
-                print(f"❌ Pro response parsing error: {e}")
-                return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": f"Pro parsing error: {e}"}
+        response = model.generate_content(prompt)
+        
+        try:
+            pro_analysis = json.loads(response.text.strip())
+            pro_analysis['timestamp'] = datetime.now(IST).isoformat()
+            pro_analysis['model'] = 'Pro'
             
-            try:
-                if response_text.strip():
-                    print(f"🔍 Pro Response: {response_text[:200]}...")  # Debug log
-                    pro_analysis = json.loads(response_text.strip())
-                    pro_analysis['timestamp'] = datetime.now(IST).isoformat()
-                    pro_analysis['model'] = 'Pro'
-                    
-                    # Store in memory
-                    pro_analysis_memory.append(pro_analysis)
-                    if len(pro_analysis_memory) > 10:
-                        pro_analysis_memory.pop(0)
-                    
-                    last_pro_analysis = pro_analysis
-                    return pro_analysis
-                else:
-                    print("❌ Pro response empty")
-                    return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro response empty"}
-                
-            except json.JSONDecodeError as e:
-                print(f"❌ Pro JSON decode error: {e}")
-                print(f"🔍 Raw response: {response_text[:500]}")  # Show more of response
-                return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro JSON error"}
-        else:
-            print(f"❌ Pro API error: {response.status_code}")
-            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": f"Pro API error {response.status_code}"}
+            # Store in memory
+            pro_analysis_memory.append(pro_analysis)
+            if len(pro_analysis_memory) > 10:
+                pro_analysis_memory.pop(0)
+            
+            last_pro_analysis = pro_analysis
+            return pro_analysis
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ Pro JSON decode error: {e}")
+            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro JSON error"}
             
     except Exception as e:
         error_msg = str(e)
