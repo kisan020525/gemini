@@ -325,38 +325,29 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
         }
         
         response = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?key={api_key}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={api_key}",
             headers={"Content-Type": "application/json"},
             json=request_data,
             timeout=30
         )
         
         if response.status_code == 200:
-            # Parse streaming response - get the last complete JSON
-            response_text = ""
-            for line in response.text.split('\n'):
-                if line.strip() and line.startswith('data: '):
-                    try:
-                        data = json.loads(line[6:])
-                        if 'candidates' in data and data['candidates']:
-                            candidate = data['candidates'][0]
-                            if 'content' in candidate and 'parts' in candidate['content']:
-                                for part in candidate['content']['parts']:
-                                    if 'text' in part:
-                                        response_text += part['text']
-                    except:
-                        continue
-            
-            # If streaming failed, try direct response
-            if not response_text:
-                try:
-                    data = response.json()
-                    if 'candidates' in data and data['candidates']:
-                        candidate = data['candidates'][0]
-                        if 'content' in candidate and 'parts' in candidate['content']:
-                            response_text = candidate['content']['parts'][0]['text']
-                except:
-                    pass
+            try:
+                data = response.json()
+                if 'candidates' in data and data['candidates']:
+                    candidate = data['candidates'][0]
+                    if 'content' in candidate and 'parts' in candidate['content']:
+                        response_text = candidate['content']['parts'][0]['text']
+                        print(f"🔍 Pro Response: {response_text[:200]}...")  # Debug log
+                    else:
+                        print("❌ Pro response missing content/parts")
+                        return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro response malformed"}
+                else:
+                    print("❌ Pro response missing candidates")
+                    return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro response missing candidates"}
+            except Exception as e:
+                print(f"❌ Pro response parsing error: {e}")
+                return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": f"Pro parsing error: {e}"}
             
             try:
                 if response_text.strip():
