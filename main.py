@@ -256,29 +256,37 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         
         # Unleash full AI analytical power with PAST PERFORMANCE
         prompt = f"""
-        You are an advanced AI TRADER with FULL FREEDOM to analyze Bitcoin and choose optimal trading strategies.
+        You are an advanced AI TRADER with COMPLETE CONTROL over all trading decisions.
+
+        FULL TRADING CONTROL:
+        - You control EVERYTHING: when to open, close, hold, or switch positions
+        - Analyze current position (if any) and decide the optimal action
+        - You can close profitable trades early or cut losses before stop loss
+        - You can switch from LONG to SHORT instantly if market reverses
+        - Use your FULL AI intelligence for all trading decisions
+
+        DECISION OPTIONS:
+        - HOLD: Keep current position if still valid
+        - CLOSE: Close current position at market price
+        - OPEN_LONG: Open new long position (only if no current position)
+        - OPEN_SHORT: Open new short position (only if no current position)  
+        - CLOSE_AND_LONG: Close current position AND immediately open long
+        - CLOSE_AND_SHORT: Close current position AND immediately open short
 
         TRADING FREEDOM:
-        - ONLY trade when 90%+ confident (confidence: 9-10) 
-        - You have COMPLETE FREEDOM to choose trade duration:
-          * SCALPING: Quick 5-30 minute trades for small profits
-          * SWING TRADES: Longer 1-24 hour trades for bigger profits
-          * Choose based on what the MARKET STRUCTURE tells you
-        - Analyze ALL 6,000 candles to understand the full market context
+        - ONLY trade when 90%+ confident (confidence: 9-10)
+        - You have COMPLETE FREEDOM to choose trade duration and management
         - Quality over quantity - Better to miss trades than take bad ones
         - Target profits based on market potential ($50-500+ per trade)
         - Use FLEXIBLE risk/reward ratios based on MARKET STRUCTURE ONLY
-        - Let the MARKET decide your trade duration and profit targets
+        - Let the MARKET decide your actions, not rigid rules
 
         RISK MANAGEMENT STRATEGY:
-        - Use PARTIAL PROFIT TAKING for better risk management
-        - When price reaches 50% of your take profit target:
-          * Close 50% of position to LOCK IN GUARANTEED PROFIT
-          * Let remaining 50% run to full TP or SL
-        - This strategy reduces risk and improves win rate
-        - Example: Entry $100k, TP $100.2k → Close 50% at $100.1k, let 50% run
-        - Benefits: Guaranteed profits, reduced losses, better psychology
-        - Always plan your trades with this partial profit approach
+        - Consider partial profit taking in your decisions
+        - Exit early if you see danger ahead
+        - Hold longer if momentum continues
+        - Switch positions if market structure changes
+        - Use your intelligence, not fixed stop losses
 
         ANALYSIS APPROACH:
         - Study the COMPLETE candle structure (all 6,000 candles)
@@ -305,6 +313,9 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         - Use your FULL ANALYTICAL POWER on all 6,000 candles
 
         Current Bitcoin price: ${current_price:.0f}
+
+        CURRENT POSITION STATUS:
+        {get_current_position_for_gemini()}
 
         {get_analysis_memory_for_gemini()}
 
@@ -364,16 +375,16 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
 
         JSON RESPONSE:
         {{
-            "thinking": "Step-by-step reasoning: 1) Market analysis... 2) Past performance review... 3) Risk assessment... 4) Final decision...",
-            "performance_analysis": "What you learned from past trades",
+            "thinking": "Step-by-step reasoning: 1) Current position analysis... 2) Market analysis... 3) Decision rationale...",
+            "position_analysis": "Analysis of current position (if any)",
             "market_analysis": "Current market assessment and key concepts used", 
-            "signal": "BUY/SELL/HOLD",
+            "action": "HOLD/CLOSE/OPEN_LONG/OPEN_SHORT/CLOSE_AND_LONG/CLOSE_AND_SHORT",
             "confidence": 1-10,
             "entry": {current_price},
             "stop_loss": price,
             "take_profit": price,
             "risk_reward_ratio": "1:X",
-            "reasoning": "Why this trade was chosen, which concepts were used, and how probability supports it"
+            "reasoning": "Why this action was chosen and how it optimizes the trading strategy"
         }}
 
         LEARN FROM YOUR MISTAKES. ONLY TRADE WITH HIGH CONFIDENCE. AVOID PREMATURE EXITS.
@@ -479,6 +490,28 @@ def add_to_analysis_memory(price: float, signal: str, confidence: int, reasoning
     if len(analysis_memory) > 30:
         analysis_memory = analysis_memory[-30:]
 
+def get_current_position_for_gemini() -> str:
+    """Format current position info for Gemini analysis"""
+    if not current_position or current_position.status != 'open':
+        return "No current position - You can open new trades"
+    
+    # Calculate unrealized P&L
+    if current_position.direction == 'long':
+        unrealized_pnl = (demo_balance - current_position.entry_price) * current_position.position_size
+    else:
+        unrealized_pnl = (current_position.entry_price - demo_balance) * current_position.position_size
+    
+    position_text = f"""CURRENT POSITION:
+Direction: {current_position.direction.upper()}
+Entry Price: ${current_position.entry_price:.0f}
+Stop Loss: ${current_position.stop_loss:.0f}
+Take Profit: ${current_position.take_profit:.0f}
+Position Size: {current_position.position_size:.4f} BTC
+Unrealized P&L: ${unrealized_pnl:.2f}
+Status: OPEN - You can HOLD, CLOSE, or SWITCH positions"""
+    
+    return position_text
+
 def get_analysis_memory_for_gemini() -> str:
     """Format recent analysis memory for Gemini context"""
     if not analysis_memory:
@@ -510,7 +543,55 @@ def calculate_position_size(entry: float, stop_loss: float, risk_amount: float) 
         return min(position_size, max_position)
     return 0.0
 
-async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
+async def execute_gemini_action(signal: Dict, current_price: float) -> Optional[Trade]:
+    """Execute Gemini's trading decision with full control"""
+    global current_position, demo_balance, total_trades
+    
+    action = signal.get('action', 'HOLD')
+    confidence = signal.get('confidence', 0)
+    
+    # Only execute high confidence actions
+    if confidence < 9 and action not in ['HOLD', 'CLOSE']:
+        print(f"⏳ WAITING for 90%+ confidence action (Current: {confidence}/10)")
+        return None
+    
+    # Execute Gemini's decision
+    if action == 'HOLD':
+        if current_position:
+            print(f"⏸️ HOLDING position: {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
+        else:
+            print(f"⏸️ HOLDING: No position, waiting for opportunity")
+        return None
+        
+    elif action == 'CLOSE':
+        if current_position:
+            print(f"🚨 GEMINI CLOSE: Closing {current_position.direction.upper()} @ ${current_price:.0f}")
+            await close_position(current_price, "Gemini Close")
+        else:
+            print(f"⚠️ No position to close")
+        return None
+        
+    elif action in ['CLOSE_AND_LONG', 'CLOSE_AND_SHORT']:
+        # Close current position first
+        if current_position:
+            print(f"🔄 GEMINI SWITCH: Closing {current_position.direction.upper()} @ ${current_price:.0f}")
+            await close_position(current_price, "Gemini Switch")
+        
+        # Open new position
+        new_direction = 'long' if action == 'CLOSE_AND_LONG' else 'short'
+        return await open_new_position(signal, current_price, new_direction)
+        
+    elif action in ['OPEN_LONG', 'OPEN_SHORT']:
+        if current_position:
+            print(f"🚫 Cannot open new position: {current_position.direction.upper()} already open")
+            return None
+        
+        new_direction = 'long' if action == 'OPEN_LONG' else 'short'
+        return await open_new_position(signal, current_price, new_direction)
+    
+    return None
+
+async def open_new_position(signal: Dict, current_price: float, direction: str) -> Optional[Trade]:
     """Execute paper trade - STRICTLY ONE AT A TIME"""
     global current_position, demo_balance, total_trades
     
@@ -1033,8 +1114,7 @@ async def main():
             if current_candle_time != last_candle_time:
                 print(f"🕐 New candle detected: {current_candle_time[-8:-3]} | Price: ${current_price:.0f}")
                 
-                # ALWAYS check position management first with full candle data
-                await check_stop_loss_take_profit(candles[-1])  # Pass full candle data
+                # Gemini now controls all position management - no automatic TP/SL
                 
                 # Skip analysis if position was just closed
                 if not current_position or current_position.status != 'open':
@@ -1051,8 +1131,8 @@ async def main():
                 print(f"🤖 AI Analysis: {signal.get('analysis', 'N/A')[:80]}...")
                 print(f"📊 Reasoning: {signal.get('reasoning', 'N/A')[:80]}...")
                 
-                # Execute trade if signal is strong
-                await execute_trade(signal, current_price)
+                # Execute Gemini's decision (full control)
+                await execute_gemini_action(signal, current_price)
                 await print_stats()
                 
                 last_candle_time = current_candle_time
