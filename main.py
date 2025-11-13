@@ -162,7 +162,7 @@ def get_next_api_key(model_type="flash") -> str:
             print(f"🔄 Reset daily counter for API Key #{i + 1}")
     
     if model_type == "pro":
-        # Pro model: Use batching (49 calls per key)
+        # Pro model: Use batching (49 calls per key) with overload checking
         
         # Check if current Pro key needs rotation (49 calls used)
         if pro_key_call_count >= 49:
@@ -170,18 +170,31 @@ def get_next_api_key(model_type="flash") -> str:
             pro_key_call_count = 0
             print(f"🔄 Pro key rotation: Switching to Key #{current_pro_key_index + 1}")
         
-        # Use current Pro key
-        key_index = current_pro_key_index
-        api_key = GEMINI_API_KEYS[key_index]
+        # Skip overloaded keys (check up to 15 keys)
+        attempts = 0
+        while attempts < 15:
+            key_index = current_pro_key_index
+            
+            # Check if this key is overloaded (5 min cooldown)
+            if current_time - api_key_rate_limited[key_index] < 300:  # 5 minutes
+                print(f"⏭️ Skipping overloaded Pro Key #{key_index + 1}")
+                current_pro_key_index = (current_pro_key_index + 1) % 15
+                pro_key_call_count = 0
+                attempts += 1
+                continue
+            
+            # Use this key
+            api_key = GEMINI_API_KEYS[key_index]
+            if api_key:
+                pro_key_call_count += 1
+                api_key_daily_count_pro[key_index] += 1
+                print(f"🔑 Using Pro API Key #{key_index + 1} (Batch: {pro_key_call_count}/49, Daily: {api_key_daily_count_pro[key_index]}/50)")
+                return api_key
+            
+            attempts += 1
         
-        if api_key:
-            pro_key_call_count += 1
-            api_key_daily_count_pro[key_index] += 1
-            print(f"🔑 Using Pro API Key #{key_index + 1} (Batch: {pro_key_call_count}/49, Daily: {api_key_daily_count_pro[key_index]}/50)")
-            return api_key
-        else:
-            print("❌ Pro API key not found")
-            return None
+        print("❌ All Pro keys overloaded or unavailable")
+        return None
             
     else:
         # Flash model: Normal rotation (unchanged)
@@ -328,6 +341,17 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float) -> Di
             return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro JSON error"}
             
     except Exception as e:
+        error_msg = str(e)
+        if "503" in error_msg or "overloaded" in error_msg.lower():
+            # Mark this API key as overloaded (5 min cooldown)
+            current_key_index = current_pro_key_index
+            api_key_rate_limited[current_key_index] = time.time()
+            print(f"⏳ Pro Key #{current_key_index + 1} overloaded - trying next key")
+            
+            # Try next key immediately
+            pro_key_call_count = 49  # Force rotation to next key
+            return await get_gemini_pro_analysis(candles_data, current_price)
+        
         print(f"❌ Gemini Pro error: {e}")
         return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": f"Pro error: {e}"}
 
