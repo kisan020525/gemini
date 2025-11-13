@@ -42,7 +42,7 @@ GEMINI_LITE_API_KEYS = [
 # Trading Configuration - SCALPING SETUP
 DEMO_CAPITAL = 10000.0
 RISK_PER_TRADE = 0.005  # 0.5% risk per trade for scalping (was 2%)
-ANALYSIS_INTERVAL = 60  # 1 minute analysis intervals
+ANALYSIS_INTERVAL = 120  # 2 minutes = 720 calls per day (safe buffer)
 
 # IST timezone
 IST = timezone(timedelta(hours=5, minutes=30))
