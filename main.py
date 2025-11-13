@@ -67,6 +67,7 @@ api_key_daily_count_pro = [0] * 15  # Track Pro model usage (50 RPD each)
 api_key_daily_count_flash = [0] * 15  # Track Flash model usage (250 RPD each)
 api_key_daily_reset = [0] * 15  # Track daily reset time for 15 keys
 api_key_usage_count = [0] * 15  # Legacy compatibility for 15 keys
+api_key_rate_limited = [0] * 15  # Track keys that hit rate limits
 
 # Shared memory for dual AI system
 pro_analysis_memory = []  # Store Pro's complete analysis
@@ -168,6 +169,10 @@ def get_next_api_key(model_type="flash") -> str:
     # Try all 15 keys in sequence for proper rotation
     for attempt in range(15):
         key_index = (current_api_key_index + attempt) % 15
+        
+        # Skip keys that recently hit rate limits (wait 5 minutes)
+        if current_time - api_key_rate_limited[key_index] < 300:  # 5 minutes
+            continue
         
         # Check daily limit
         if daily_count[key_index] >= daily_limit:
@@ -348,6 +353,13 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float) -> Di
             return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro JSON error"}
             
     except Exception as e:
+        error_msg = str(e)
+        if "429" in error_msg or "quota" in error_msg.lower():
+            # Mark this API key as rate limited
+            current_key_index = (current_api_key_index - 1) % 15
+            api_key_rate_limited[current_key_index] = time.time()
+            print(f"⏳ API Key #{current_key_index + 1} rate limited - marked for 5min cooldown")
+        
         print(f"❌ Gemini Pro error: {e}")
         return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": f"Pro error: {e}"}
 
