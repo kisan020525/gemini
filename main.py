@@ -73,9 +73,9 @@ lite_key_daily_reset = [0] * 2
 
 # Trading state - RESET TO START FRESH
 current_position = None
-demo_balance = 10000.0  # Starting capital
-total_trades = 0        # Reset trade counter
-analysis_memory = []    # Store last 30 analysis decisions
+demo_balance = 10000.0  # Starting capital - RESET
+total_trades = 0        # Reset trade counter to 0
+analysis_memory = []    # Clear analysis memory for fresh start
 winning_trades = 0      # Reset win counter
 
 class Trade:
