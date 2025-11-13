@@ -259,13 +259,18 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         - You DON'T need to trade every analysis - WAIT for perfect setups
         - Quality over quantity - Better to miss trades than take bad ones
         - Target meaningful profits ($80-200 per trade)
-        - Use optimal risk/reward ratios (minimum 1:2, prefer 1:3)
-        - Adjust stop loss and take profit based on your confidence level:
-          * Confidence 9/10: Use 1:2 risk/reward (conservative)
-          * Confidence 10/10: Use 1:3 risk/reward (aggressive)
+        - Use FLEXIBLE risk/reward ratios based on market conditions:
+          * Strong setups: Use 1:3 or 1:4 risk/reward (aggressive)
+          * Good setups: Use 1:2 or 1:2.5 risk/reward (balanced)
+          * Choose the BEST ratio for each specific trade setup
+          * Consider market volatility, support/resistance levels, and momentum
+        - Adjust stop loss and take profit based on TECHNICAL LEVELS, not fixed ratios
 
         IMPORTANT: 
         - Set confidence to 9+ ONLY when you see CRYSTAL CLEAR signals
+        - Choose risk/reward ratio that FITS the market structure
+        - Place stops at logical technical levels (support/resistance)
+        - Set targets at realistic price objectives
         - If you're not 90%+ sure, choose HOLD - there's always another opportunity
         - Don't force trades - patience is profitable
 
@@ -301,9 +306,17 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         3. Identify patterns across multiple timeframes
         4. Select the best-fit analytical concepts for the current conditions
         5. Calculate probabilities based on historical success
-        6. Optimize risk-adjusted returns from experience
-        7. Only trade when you have HIGH CONFIDENCE (8+)
-        8. Avoid premature exits — TP or SL must decide the outcome
+        6. Choose OPTIMAL risk/reward ratio for THIS specific setup
+        7. Place stops and targets at TECHNICAL LEVELS (not arbitrary ratios)
+        8. Only trade when you have HIGH CONFIDENCE (9+)
+        9. Avoid premature exits — TP or SL must decide the outcome
+
+        RISK/REWARD SELECTION GUIDE:
+        - Analyze support/resistance levels to set logical stops
+        - Identify realistic profit targets based on market structure
+        - Consider current volatility and momentum
+        - Choose ratio that maximizes probability of success
+        - Don't force fixed ratios - adapt to market conditions
 
         IMPORTANT: You can only have ONE TRADE AT A TIME. If you're not very confident (8+), choose HOLD.
 
