@@ -270,6 +270,16 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         - Use FLEXIBLE risk/reward ratios based on MARKET STRUCTURE ONLY
         - Let the MARKET decide your trade duration and profit targets
 
+        RISK MANAGEMENT STRATEGY:
+        - Use PARTIAL PROFIT TAKING for better risk management
+        - When price reaches 50% of your take profit target:
+          * Close 50% of position to LOCK IN GUARANTEED PROFIT
+          * Let remaining 50% run to full TP or SL
+        - This strategy reduces risk and improves win rate
+        - Example: Entry $100k, TP $100.2k → Close 50% at $100.1k, let 50% run
+        - Benefits: Guaranteed profits, reduced losses, better psychology
+        - Always plan your trades with this partial profit approach
+
         ANALYSIS APPROACH:
         - Study the COMPLETE candle structure (all 6,000 candles)
         - Identify if market is in: trending, ranging, breakout, or reversal phase
@@ -323,9 +333,10 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         5. Select the best-fit analytical concepts for current conditions
         6. Calculate probabilities for scalping vs swing opportunities
         7. Choose trade type that maximizes profit potential
-        8. Place stops and targets at TECHNICAL LEVELS based on full analysis
-        9. Only trade when you have HIGH CONFIDENCE (9+)
-        10. Let the market structure decide everything: duration, targets, stops
+        8. Plan PARTIAL PROFIT strategy: set TP where 50% close makes sense
+        9. Place stops and targets at TECHNICAL LEVELS based on full analysis
+        10. Only trade when you have HIGH CONFIDENCE (9+)
+        11. Let the market structure decide everything: duration, targets, stops
 
         MARKET STRUCTURE ANALYSIS GUIDE:
         - Examine the complete 6,000 candle dataset for context
@@ -552,7 +563,8 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
         "capital_before": demo_balance,  # Track capital before trade
         "capital_after": demo_balance,   # Will update when closed
         "total_pnl": demo_balance - 10000.0,  # Running total P&L
-        "trade_result": "OPEN"  # Easy status indicator
+        "trade_result": "OPEN",  # Easy status indicator
+        "partial_profit_50": 0.0  # Track 50% TP partial profit
     }
     
     if trades_supabase:
