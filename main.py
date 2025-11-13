@@ -259,18 +259,17 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         - You DON'T need to trade every analysis - WAIT for perfect setups
         - Quality over quantity - Better to miss trades than take bad ones
         - Target meaningful profits ($80-200 per trade)
-        - Use FLEXIBLE risk/reward ratios based on market conditions:
-          * Strong setups: Use 1:3 or 1:4 risk/reward (aggressive)
-          * Good setups: Use 1:2 or 1:2.5 risk/reward (balanced)
-          * Choose the BEST ratio for each specific trade setup
-          * Consider market volatility, support/resistance levels, and momentum
-        - Adjust stop loss and take profit based on TECHNICAL LEVELS, not fixed ratios
+        - Use FLEXIBLE risk/reward ratios based on MARKET STRUCTURE ONLY
+        - Analyze where logical stops and targets should be placed
+        - Let the MARKET decide your risk/reward ratio, not arbitrary rules
+        - Place stops at technical levels (support/resistance/trend lines)
+        - Set targets at realistic market objectives (next resistance/support)
 
         IMPORTANT: 
         - Set confidence to 9+ ONLY when you see CRYSTAL CLEAR signals
-        - Choose risk/reward ratio that FITS the market structure
-        - Place stops at logical technical levels (support/resistance)
-        - Set targets at realistic price objectives
+        - Risk/reward ratio is determined by MARKET STRUCTURE, not confidence level
+        - Sometimes low confidence trades have better risk/reward than high confidence
+        - Place stops and targets where they make TECHNICAL SENSE
         - If you're not 90%+ sure, choose HOLD - there's always another opportunity
         - Don't force trades - patience is profitable
 
@@ -312,11 +311,12 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         9. Avoid premature exits — TP or SL must decide the outcome
 
         RISK/REWARD SELECTION GUIDE:
-        - Analyze support/resistance levels to set logical stops
-        - Identify realistic profit targets based on market structure
-        - Consider current volatility and momentum
-        - Choose ratio that maximizes probability of success
-        - Don't force fixed ratios - adapt to market conditions
+        - Analyze current market structure and price levels
+        - Place stops at logical technical levels (not arbitrary distances)
+        - Set targets at realistic market objectives (next key levels)
+        - Let the MARKET determine your risk/reward ratio
+        - Don't force ratios - use what the market structure offers
+        - Sometimes 1:1 trades are better than forced 1:3 trades
 
         IMPORTANT: You can only have ONE TRADE AT A TIME. If you're not very confident (8+), choose HOLD.
 
