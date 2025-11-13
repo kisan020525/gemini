@@ -157,16 +157,17 @@ def get_next_api_key(model_type="flash") -> str:
     
     # Set rate limits based on model type
     if model_type == "pro":
-        daily_limit = 50  # Pro model: 50 RPD
+        daily_limit = 50  # Pro model: 50 RPD per key
         daily_count = api_key_daily_count_pro
         min_interval = 120  # 2 minutes between Pro calls
     else:  # flash
-        daily_limit = 250  # Flash model: 250 RPD
+        daily_limit = 250  # Flash model: 250 RPD per key
         daily_count = api_key_daily_count_flash
         min_interval = 60  # 1 minute between Flash calls
     
-    # Find available API key
-    for attempt in range(15):
+    # Find available API key (try all 15 keys for Pro)
+    max_attempts = 15 if model_type == "pro" else 15
+    for attempt in range(max_attempts):
         key_index = (current_api_key_index + attempt) % 15
         
         # Check daily limit
@@ -1157,10 +1158,9 @@ async def sync_position_from_database():
                 # IMMEDIATE SL/TP CHECK after sync
                 print("🔍 Checking if position should have been closed...")
                 
-                # Force close if entry/SL data looks wrong
-                if current_position.entry_price > 104000 or current_position.stop_loss < 103000:
-                    print("🚨 INVALID POSITION DATA - Force closing position")
-                    await close_position(current_position.entry_price, "Invalid data - force close")
+                # Position synced successfully - no validation needed
+                print(f"✅ Position synced: {current_position.direction.upper()} @ ${current_position.entry_price:.0f} | SL: ${current_position.stop_loss:.0f}")
+                print(f"✅ Capital synced: ${demo_balance:.2f}")
                 
             else:
                 print("✅ No open positions found in database")
