@@ -595,6 +595,41 @@ async def execute_trade(signal: Dict, current_price: float) -> Optional[Trade]:
     
     return trade
 
+async def close_partial_position(exit_price: float, reason: str):
+    """Close 50% of position for partial profit taking"""
+    global current_position, demo_balance, winning_trades
+    
+    if not current_position or current_position.status != 'open':
+        return
+    
+    # Calculate 50% PnL
+    if current_position.direction == 'long':
+        partial_pnl = (exit_price - current_position.entry_price) * (current_position.position_size * 0.5)
+    else:  # short
+        partial_pnl = (current_position.entry_price - exit_price) * (current_position.position_size * 0.5)
+    
+    # Update balance with partial profit
+    demo_balance += partial_pnl
+    
+    # Reduce position size by 50%
+    current_position.position_size *= 0.5
+    
+    # Mark that partial profit was taken
+    current_position.partial_taken = True
+    
+    # Update database with partial profit
+    if trades_supabase:
+        try:
+            trades_supabase.table("paper_trades").update({
+                "partial_profit_50": partial_pnl,
+                "capital_after": demo_balance
+            }).eq("trade_id", total_trades).execute()
+        except Exception as e:
+            print(f"❌ Partial profit DB error: {e}")
+    
+    print(f"🎯 PARTIAL PROFIT: 50% closed at ${exit_price:.0f} | Profit: ${partial_pnl:.2f} | Remaining: 50%")
+    print(f"💰 Updated Capital: ${demo_balance:.2f}")
+
 async def close_position(exit_price: float, reason: str):
     """Close current position"""
     global current_position, demo_balance, winning_trades
@@ -703,11 +738,23 @@ async def check_stop_loss_take_profit(current_candle: Dict):
     
     # ALWAYS check natural stop loss and take profit levels
     should_close = False
+    partial_close = False
     close_price = current_price
     reason = "Hold"
     
+    # Calculate 50% TP level for partial profit taking
+    entry = current_position.entry_price
+    tp = current_position.take_profit
+    halfway_tp = entry + (tp - entry) * 0.5  # 50% of the way to TP
+    
     if current_position.direction == 'long':
-        if candle_low <= current_position.stop_loss:
+        # Check for partial profit at 50% TP
+        if candle_high >= halfway_tp and not hasattr(current_position, 'partial_taken'):
+            partial_close = True
+            close_price = halfway_tp
+            reason = "Partial Profit 50%"
+        # Check full stop loss and take profit
+        elif candle_low <= current_position.stop_loss:
             should_close = True
             close_price = current_position.stop_loss
             reason = "Stop Loss"
@@ -716,7 +763,13 @@ async def check_stop_loss_take_profit(current_candle: Dict):
             close_price = current_position.take_profit
             reason = "Take Profit"
     else:  # short
-        if candle_high >= current_position.stop_loss:
+        # Check for partial profit at 50% TP
+        if candle_low <= halfway_tp and not hasattr(current_position, 'partial_taken'):
+            partial_close = True
+            close_price = halfway_tp
+            reason = "Partial Profit 50%"
+        # Check full stop loss and take profit
+        elif candle_high >= current_position.stop_loss:
             should_close = True
             close_price = current_position.stop_loss
             reason = "Stop Loss"
@@ -725,7 +778,11 @@ async def check_stop_loss_take_profit(current_candle: Dict):
             close_price = current_position.take_profit
             reason = "Take Profit"
     
-    if should_close:
+    if partial_close:
+        print(f"🎯 PARTIAL PROFIT: Closing 50% at ${close_price:.0f}")
+        await close_partial_position(close_price, reason)
+        return
+    elif should_close:
         print(f"🚨 NATURAL {reason.upper()}: Closing at ${close_price:.0f}")
         await close_position(close_price, reason)
         return
