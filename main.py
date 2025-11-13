@@ -1311,8 +1311,8 @@ async def main():
                 global analysis_counter
                 analysis_counter += 1
                 
-                # Run Pro analysis every 2 minutes (even cycles)
-                if analysis_counter % 2 == 0:
+                # Run Pro analysis every 4 minutes (every 4th cycle)
+                if analysis_counter % 4 == 0:
                     print("🧠 Running Gemini 2.5 Pro Strategic Analysis...")
                     pro_signal = await get_gemini_pro_analysis(candles_data, current_price)
                     print(f"🎯 Pro Strategy: {pro_signal.get('signal')} | Confidence: {pro_signal.get('confidence')}/10")
