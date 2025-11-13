@@ -266,7 +266,14 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float) -> Di
                         "strategic_thinking": {"type": "string"},
                         "market_analysis": {"type": "string"},
                         "trend_direction": {"type": "string"},
-                        "key_levels": {"type": "object"},
+                        "key_levels": {
+                            "type": "object",
+                            "properties": {
+                                "support": {"type": "number"},
+                                "resistance": {"type": "number"},
+                                "pivot": {"type": "number"}
+                            }
+                        },
                         "entry_conditions": {"type": "string"},
                         "risk_assessment": {"type": "string"},
                         "signal": {"type": "string"},
