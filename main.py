@@ -62,6 +62,8 @@ trades_supabase = create_client(TRADES_SUPABASE_URL, TRADES_SUPABASE_KEY) if TRA
 
 # API Key rotation for dual model system (15 keys)
 current_api_key_index = 0
+current_pro_key_index = 0  # Separate index for Pro model batching
+pro_key_call_count = 0     # Count calls for current Pro key
 api_key_last_used = [0] * 15   # Track last usage time for 15 keys
 api_key_daily_count_pro = [0] * 15  # Track Pro model usage (50 RPD each)
 api_key_daily_count_flash = [0] * 15  # Track Flash model usage (250 RPD each)
@@ -143,8 +145,9 @@ def get_next_lite_api_key() -> str:
     return None
 
 def get_next_api_key(model_type="flash") -> str:
-    """Get next available API key for Pro or Flash model with proper rotation"""
-    global current_api_key_index, api_key_last_used, api_key_daily_count_pro, api_key_daily_count_flash, api_key_daily_reset
+    """Get next available API key - Pro uses batching, Flash rotates normally"""
+    global current_api_key_index, current_pro_key_index, pro_key_call_count
+    global api_key_last_used, api_key_daily_count_pro, api_key_daily_count_flash, api_key_daily_reset
     
     current_time = time.time()
     
@@ -156,48 +159,60 @@ def get_next_api_key(model_type="flash") -> str:
             api_key_daily_reset[i] = current_time
             print(f"🔄 Reset daily counter for API Key #{i + 1}")
     
-    # Set rate limits based on model type
     if model_type == "pro":
-        daily_limit = 50  # Pro model: 50 RPD per key
-        daily_count = api_key_daily_count_pro
-        min_interval = 180  # 3 minutes between Pro calls (safer)
-    else:  # flash
-        daily_limit = 250  # Flash model: 250 RPD per key
-        daily_count = api_key_daily_count_flash
-        min_interval = 60  # 1 minute between Flash calls
-    
-    # Try all 15 keys in sequence for proper rotation
-    for attempt in range(15):
-        key_index = (current_api_key_index + attempt) % 15
+        # Pro model: Use batching (49 calls per key)
         
-        # Skip keys that recently hit rate limits (wait 5 minutes)
-        if current_time - api_key_rate_limited[key_index] < 300:  # 5 minutes
-            continue
+        # Check if current Pro key needs rotation (49 calls used)
+        if pro_key_call_count >= 49:
+            current_pro_key_index = (current_pro_key_index + 1) % 15
+            pro_key_call_count = 0
+            print(f"🔄 Pro key rotation: Switching to Key #{current_pro_key_index + 1}")
         
-        # Check daily limit
-        if daily_count[key_index] >= daily_limit:
-            continue
-            
-        # Check minimum time between calls for this specific key
-        time_since_last = current_time - api_key_last_used[key_index]
-        if time_since_last < min_interval:
-            continue
-        
-        # This key is available - use it and update rotation
-        current_api_key_index = (key_index + 1) % 15  # Move to next key for next call
-        api_key_last_used[key_index] = current_time
-        daily_count[key_index] += 1
-        
+        # Use current Pro key
+        key_index = current_pro_key_index
         api_key = GEMINI_API_KEYS[key_index]
+        
         if api_key:
-            model_name = "Pro" if model_type == "pro" else "Flash"
-            print(f"🔑 Using {model_name} API Key #{key_index + 1} (Daily: {daily_count[key_index]}/{daily_limit})")
+            pro_key_call_count += 1
+            api_key_daily_count_pro[key_index] += 1
+            print(f"🔑 Using Pro API Key #{key_index + 1} (Batch: {pro_key_call_count}/49, Daily: {api_key_daily_count_pro[key_index]}/50)")
             return api_key
-    
-    # No keys available
-    model_name = "Pro" if model_type == "pro" else "Flash"
-    print(f"⏳ All {model_name} API keys cooling down, waiting...")
-    return None
+        else:
+            print("❌ Pro API key not found")
+            return None
+            
+    else:
+        # Flash model: Normal rotation (unchanged)
+        daily_limit = 250
+        daily_count = api_key_daily_count_flash
+        min_interval = 60
+        
+        # Try all 15 keys for Flash rotation
+        for attempt in range(15):
+            key_index = (current_api_key_index + attempt) % 15
+            
+            # Check daily limit
+            if daily_count[key_index] >= daily_limit:
+                continue
+                
+            # Check minimum time between calls
+            time_since_last = current_time - api_key_last_used[key_index]
+            if time_since_last < min_interval:
+                continue
+            
+            # This key is available
+            current_api_key_index = (key_index + 1) % 15
+            api_key_last_used[key_index] = current_time
+            daily_count[key_index] += 1
+            
+            api_key = GEMINI_API_KEYS[key_index]
+            if api_key:
+                print(f"🔑 Using Flash API Key #{key_index + 1} (Daily: {daily_count[key_index]}/{daily_limit})")
+                return api_key
+        
+        # No Flash keys available
+        print("⏳ All Flash API keys cooling down, waiting...")
+        return None
 
 async def fetch_latest_candles(limit: int = 6000) -> List[Dict]:
     """Fetch latest candles for comprehensive market analysis"""
@@ -1031,7 +1046,7 @@ async def print_stats():
     total_flash_usage = sum(api_key_daily_count_flash)
     
     print(f"📈 Balance: ${demo_balance:.0f} | Return: {total_return:.1f}% | Trades: {total_trades} | Win: {win_rate:.0f}%")
-    print(f"🔑 API Usage: Pro {total_pro_usage}/750 | Flash {total_flash_usage}/3750")
+    print(f"🔑 API Usage: Pro {total_pro_usage}/750 (Key #{current_pro_key_index + 1}: {pro_key_call_count}/49) | Flash {total_flash_usage}/3750")
 
 async def wait_for_new_candle(last_candle_time: str) -> bool:
     """Wait for new candle to be added to Supabase"""
