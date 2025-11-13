@@ -1,6 +1,6 @@
 """
 Gemini 2.5 Flash Trading Bot - Multi-API Key Version
-6 API keys rotation for 1500 RPD (250 x 6) = Every minute analysis
+9 API keys rotation for 2250 RPD (250 x 9) = Every minute analysis with buffer
 """
 
 import os
@@ -23,14 +23,17 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 TRADES_SUPABASE_URL = os.getenv("TRADES_SUPABASE_URL")
 TRADES_SUPABASE_KEY = os.getenv("TRADES_SUPABASE_KEY")
 
-# 6 Gemini API Keys for analysis (250 RPD each = 1500 total)
+# 9 Gemini API Keys for analysis (250 RPD each = 2250 total)
 GEMINI_API_KEYS = [
     os.getenv("GEMINI_API_KEY_1"),
     os.getenv("GEMINI_API_KEY_2"), 
     os.getenv("GEMINI_API_KEY_3"),
     os.getenv("GEMINI_API_KEY_4"),
     os.getenv("GEMINI_API_KEY_5"),
-    os.getenv("GEMINI_API_KEY_6")
+    os.getenv("GEMINI_API_KEY_6"),
+    os.getenv("GEMINI_API_KEY_7"),  # New key
+    os.getenv("GEMINI_API_KEY_8"),  # New key
+    os.getenv("GEMINI_API_KEY_9")   # New key
 ]
 
 # 2 Gemini Lite API Keys for trade management (1000 RPD each = 2000 total)
@@ -42,7 +45,7 @@ GEMINI_LITE_API_KEYS = [
 # Trading Configuration - SCALPING SETUP
 DEMO_CAPITAL = 10000.0
 RISK_PER_TRADE = 0.005  # 0.5% risk per trade for scalping (was 2%)
-ANALYSIS_INTERVAL = 120  # 2 minutes = 720 calls per day (safe buffer)
+ANALYSIS_INTERVAL = 60  # 1 minute analysis intervals
 
 # IST timezone
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -140,9 +143,9 @@ def get_next_api_key() -> str:
     
     # Find available API key with strict limits
     for attempt in range(6):
-        key_index = (current_api_key_index + attempt) % 6
+        key_index = (current_api_key_index + attempt) % 9
         
-        # Check daily limit (max 250 per day per key = 1500 total)
+        # Check daily limit (max 250 per day per key = 2250 total)
         if api_key_daily_count[key_index] >= 250:
             continue
             
@@ -680,7 +683,7 @@ async def print_stats():
     
     # Show API key usage
     total_daily_usage = sum(api_key_daily_count)
-    print(f"📈 Balance: ${demo_balance:.0f} | Return: {total_return:.1f}% | Trades: {total_trades} | Win: {win_rate:.0f}% | API: {total_daily_usage}/1500")
+    print(f"📈 Balance: ${demo_balance:.0f} | Return: {total_return:.1f}% | Trades: {total_trades} | Win: {win_rate:.0f}% | API: {total_daily_usage}/2250")
 
 async def wait_for_new_candle(last_candle_time: str) -> bool:
     """Wait for new candle to be added to Supabase"""
@@ -886,7 +889,7 @@ async def main():
     print("🕐 Triggered by new candle updates")
     
     valid_keys = [key for key in GEMINI_API_KEYS if key]
-    print(f"🔑 API Keys loaded: {len(valid_keys)}/6")
+    print(f"🔑 API Keys loaded: {len(valid_keys)}/9")
     
     if len(valid_keys) == 0:
         print("❌ No API keys found!")
