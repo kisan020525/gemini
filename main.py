@@ -359,20 +359,26 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
                     pass
             
             try:
-                pro_analysis = json.loads(response_text.strip())
-                pro_analysis['timestamp'] = datetime.now(IST).isoformat()
-                pro_analysis['model'] = 'Pro'
+                if response_text.strip():
+                    print(f"🔍 Pro Response: {response_text[:200]}...")  # Debug log
+                    pro_analysis = json.loads(response_text.strip())
+                    pro_analysis['timestamp'] = datetime.now(IST).isoformat()
+                    pro_analysis['model'] = 'Pro'
+                    
+                    # Store in memory
+                    pro_analysis_memory.append(pro_analysis)
+                    if len(pro_analysis_memory) > 10:
+                        pro_analysis_memory.pop(0)
+                    
+                    last_pro_analysis = pro_analysis
+                    return pro_analysis
+                else:
+                    print("❌ Pro response empty")
+                    return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro response empty"}
                 
-                # Store in memory
-                pro_analysis_memory.append(pro_analysis)
-                if len(pro_analysis_memory) > 10:
-                    pro_analysis_memory.pop(0)
-                
-                last_pro_analysis = pro_analysis
-                return pro_analysis
-                
-            except json.JSONDecodeError:
-                print("❌ Pro JSON decode error")
+            except json.JSONDecodeError as e:
+                print(f"❌ Pro JSON decode error: {e}")
+                print(f"🔍 Raw response: {response_text[:500]}")  # Show more of response
                 return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro JSON error"}
         else:
             print(f"❌ Pro API error: {response.status_code}")
