@@ -391,8 +391,8 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
             return {"signal": "HOLD", "confidence": 0, "reasoning": "No API keys available"}
         
         # Configure Gemini 2.5 Flash with structured output and thinking mode
-        old_genai.configure(api_key=api_key)
-        model = old_genai.GenerativeModel(
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
             'gemini-2.5-flash-preview-09-2025',
             generation_config={
                 "response_mime_type": "application/json",
