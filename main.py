@@ -278,9 +278,14 @@ def format_candles_for_gemini(candles: List[Dict]) -> str:
     
     return formatted_data
 
-async def get_gemini_pro_analysis(candles_data: str, current_price: float) -> Dict:
+async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry_count: int = 0) -> Dict:
     """Get strategic analysis from Gemini 2.5 Pro using new GenAI SDK"""
     global pro_analysis_memory, last_pro_analysis
+    
+    # Prevent infinite retries - max 3 attempts
+    if retry_count >= 3:
+        print("❌ All Pro keys overloaded - using Flash only")
+        return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "All Pro keys overloaded"}
     
     try:
         # Get Pro API key
@@ -348,9 +353,9 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float) -> Di
             api_key_rate_limited[current_key_index] = time.time()
             print(f"⏳ Pro Key #{current_key_index + 1} overloaded - trying next key")
             
-            # Try next key immediately
+            # Try next key immediately (with retry limit)
             pro_key_call_count = 49  # Force rotation to next key
-            return await get_gemini_pro_analysis(candles_data, current_price)
+            return await get_gemini_pro_analysis(candles_data, current_price, retry_count + 1)
         
         print(f"❌ Gemini Pro error: {e}")
         return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": f"Pro error: {e}"}
