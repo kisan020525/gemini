@@ -547,7 +547,7 @@ async def execute_gemini_action(signal: Dict, current_price: float) -> Optional[
     """Execute Gemini's trading decision with full control"""
     global current_position, demo_balance, total_trades
     
-    action = signal.get('action', 'HOLD')
+    action = signal.get('signal', 'HOLD')  # Fixed: use 'signal' not 'action'
     confidence = signal.get('confidence', 0)
     
     # Only execute high confidence actions
