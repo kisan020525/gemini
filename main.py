@@ -252,26 +252,38 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         
         # Unleash full AI analytical power with PAST PERFORMANCE
         prompt = f"""
-        You are an advanced AI SCALPING TRADER analyzing Bitcoin for EXCEPTIONAL opportunities.
+        You are an advanced AI TRADER with FULL FREEDOM to analyze Bitcoin and choose optimal trading strategies.
 
-        TRADING DISCIPLINE:
+        TRADING FREEDOM:
         - ONLY trade when 90%+ confident (confidence: 9-10) 
-        - You DON'T need to trade every analysis - WAIT for perfect setups
+        - You have COMPLETE FREEDOM to choose trade duration:
+          * SCALPING: Quick 5-30 minute trades for small profits
+          * SWING TRADES: Longer 1-24 hour trades for bigger profits
+          * Choose based on what the MARKET STRUCTURE tells you
+        - Analyze ALL 6,000 candles to understand the full market context
         - Quality over quantity - Better to miss trades than take bad ones
-        - Target meaningful profits ($80-200 per trade)
+        - Target profits based on market potential ($50-500+ per trade)
         - Use FLEXIBLE risk/reward ratios based on MARKET STRUCTURE ONLY
-        - Analyze where logical stops and targets should be placed
-        - Let the MARKET decide your risk/reward ratio, not arbitrary rules
-        - Place stops at technical levels (support/resistance/trend lines)
-        - Set targets at realistic market objectives (next resistance/support)
+        - Let the MARKET decide your trade duration and profit targets
+
+        ANALYSIS APPROACH:
+        - Study the COMPLETE candle structure (all 6,000 candles)
+        - Identify if market is in: trending, ranging, breakout, or reversal phase
+        - Choose trade type that FITS the current market behavior:
+          * Strong trends = Swing trades with bigger targets
+          * Tight ranges = Scalping trades with quick profits
+          * Breakouts = Position trades with extended targets
+          * Reversals = Counter-trend trades with logical exits
+        - Analyze multiple timeframes within the 6,000 candle dataset
+        - Find the BEST opportunity the market is offering right now
 
         IMPORTANT: 
         - Set confidence to 9+ ONLY when you see CRYSTAL CLEAR signals
-        - Risk/reward ratio is determined by MARKET STRUCTURE, not confidence level
-        - Sometimes low confidence trades have better risk/reward than high confidence
+        - Choose trade duration based on MARKET STRUCTURE, not fixed rules
+        - Sometimes scalp for $50, sometimes swing for $300+
         - Place stops and targets where they make TECHNICAL SENSE
         - If you're not 90%+ sure, choose HOLD - there's always another opportunity
-        - Don't force trades - patience is profitable
+        - Use your FULL ANALYTICAL POWER on all 6,000 candles
 
         Current Bitcoin price: ${current_price:.0f}
 
@@ -301,22 +313,25 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
 
         COMPUTATIONAL APPROACH:
         1. Review your past performance and learn from mistakes
-        2. Process ALL 6,000 candle data points simultaneously
-        3. Identify patterns across multiple timeframes
-        4. Select the best-fit analytical concepts for the current conditions
-        5. Calculate probabilities based on historical success
-        6. Choose OPTIMAL risk/reward ratio for THIS specific setup
-        7. Place stops and targets at TECHNICAL LEVELS (not arbitrary ratios)
-        8. Only trade when you have HIGH CONFIDENCE (9+)
-        9. Avoid premature exits — TP or SL must decide the outcome
+        2. DEEPLY ANALYZE ALL 6,000 candle data points simultaneously
+        3. Identify market phase: trending, ranging, breakout, reversal
+        4. Determine optimal trade duration based on market structure
+        5. Select the best-fit analytical concepts for current conditions
+        6. Calculate probabilities for scalping vs swing opportunities
+        7. Choose trade type that maximizes profit potential
+        8. Place stops and targets at TECHNICAL LEVELS based on full analysis
+        9. Only trade when you have HIGH CONFIDENCE (9+)
+        10. Let the market structure decide everything: duration, targets, stops
 
-        RISK/REWARD SELECTION GUIDE:
-        - Analyze current market structure and price levels
-        - Place stops at logical technical levels (not arbitrary distances)
-        - Set targets at realistic market objectives (next key levels)
-        - Let the MARKET determine your risk/reward ratio
-        - Don't force ratios - use what the market structure offers
-        - Sometimes 1:1 trades are better than forced 1:3 trades
+        MARKET STRUCTURE ANALYSIS GUIDE:
+        - Examine the complete 6,000 candle dataset for context
+        - Identify major support/resistance levels across all timeframes
+        - Determine current market phase and momentum
+        - Find the highest probability opportunity available
+        - Choose scalping if market is choppy/ranging
+        - Choose swing trading if market is trending strongly
+        - Adapt your strategy to what the market is offering
+        - Don't force a trading style - let the market guide you
 
         IMPORTANT: You can only have ONE TRADE AT A TIME. If you're not very confident (8+), choose HOLD.
 
