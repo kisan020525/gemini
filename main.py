@@ -282,6 +282,11 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
 
         ANALYSIS APPROACH:
         - Study the COMPLETE candle structure (all 6,000 candles)
+        - Analyze VOLUME and TRADE COUNT data for confirmation:
+          * High volume + price move = Strong momentum
+          * Low volume + price move = Weak momentum (likely reversal)
+          * Volume spikes = Institutional activity or breakouts
+          * Trade count = Market participation and interest
         - Identify if market is in: trending, ranging, breakout, or reversal phase
         - Choose trade type that FITS the current market behavior:
           * Strong trends = Swing trades with bigger targets
@@ -314,6 +319,8 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         Apply every relevant concept:
         - Mathematical models (statistics, probability, regression, neural patterns)
         - Technical analysis (indicators, patterns, oscillators)
+        - VOLUME ANALYSIS (volume spikes, volume trends, volume confirmation)
+        - TRADE COUNT analysis (market participation, institutional activity)
         - Market psychology (sentiment, crowd behavior)
         - Your own trading history and mistakes
         - Risk management based on past performance
@@ -341,6 +348,11 @@ async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
         MARKET STRUCTURE ANALYSIS GUIDE:
         - Examine the complete 6,000 candle dataset for context
         - Identify major support/resistance levels across all timeframes
+        - ANALYZE VOLUME PATTERNS:
+          * Volume confirmation on breakouts (high volume = valid breakout)
+          * Volume divergence (price up, volume down = weakness)
+          * Volume spikes at key levels (institutional activity)
+          * Trade count patterns (high trades = strong interest)
         - Determine current market phase and momentum
         - Find the highest probability opportunity available
         - Choose scalping if market is choppy/ranging
