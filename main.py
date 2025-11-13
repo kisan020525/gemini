@@ -9,7 +9,9 @@ import json
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
-import google.generativeai as genai
+from google import genai
+from google.genai import types
+import google.generativeai as old_genai  # Keep old SDK for Flash
 from supabase import create_client
 from dotenv import load_dotenv
 
@@ -264,7 +266,7 @@ def format_candles_for_gemini(candles: List[Dict]) -> str:
     return formatted_data
 
 async def get_gemini_pro_analysis(candles_data: str, current_price: float) -> Dict:
-    """Get strategic analysis from Gemini Pro using old SDK"""
+    """Get strategic analysis from Gemini 2.5 Pro using new GenAI SDK"""
     global pro_analysis_memory, last_pro_analysis
     
     try:
@@ -274,43 +276,39 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float) -> Di
             print("🚫 No Pro API keys available, using last analysis")
             return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "No Pro API available"}
         
-        # Configure Gemini Pro with old SDK
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-pro')  # Use stable Pro model
-        
-        # Get Flash's recent analysis for context
-        flash_context = ""
-        if flash_analysis_memory:
-            recent_flash = flash_analysis_memory[-3:]  # Last 3 Flash analyses
-            flash_context = f"\n\nFLASH MODEL'S RECENT ANALYSIS:\n{json.dumps(recent_flash, indent=2)}"
+        # Configure new GenAI client
+        client = genai.Client(api_key=api_key)
         
         prompt = f"""
-        You are GEMINI PRO - The Strategic Master AI for Bitcoin Trading.
-        
-        Your role: Provide DEEP STRATEGIC ANALYSIS that Gemini Flash will use for tactical execution.
+        You are GEMINI 2.5 PRO - Strategic Master AI for Bitcoin Trading.
         
         Current Bitcoin Price: ${current_price}
+        Market Data: {candles_data[-2000:]}
         
-        COMPLETE MARKET DATA:
-        {candles_data[-2000:]}
-        
-        {flash_context}
-        
-        Respond in JSON format:
+        Provide strategic analysis in JSON format:
         {{
-            "strategic_thinking": "Your deep analysis process",
-            "market_analysis": "Complete market assessment",
-            "trend_direction": "Overall trend direction",
             "signal": "LONG/SHORT/HOLD",
             "confidence": 1-10,
             "entry": {current_price},
             "stop_loss": price_level,
             "take_profit": price_level,
-            "reasoning": "Strategic reasoning for Flash model"
+            "trend_direction": "Overall trend",
+            "reasoning": "Strategic analysis"
         }}
         """
         
-        response = model.generate_content(prompt)
+        contents = [
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=prompt)],
+            ),
+        ]
+        
+        # Generate content with new SDK
+        response = client.models.generate_content(
+            model="gemini-2.5-pro",
+            contents=contents,
+        )
         
         try:
             pro_analysis = json.loads(response.text.strip())
@@ -322,9 +320,7 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float) -> Di
             if len(pro_analysis_memory) > 10:
                 pro_analysis_memory.pop(0)
             
-            # Update last analysis for Flash
             last_pro_analysis = pro_analysis
-            
             return pro_analysis
             
         except json.JSONDecodeError:
@@ -332,13 +328,6 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float) -> Di
             return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro JSON error"}
             
     except Exception as e:
-        error_msg = str(e)
-        if "429" in error_msg or "quota" in error_msg.lower():
-            # Mark this API key as rate limited
-            current_key_index = (current_pro_key_index) % 15
-            api_key_rate_limited[current_key_index] = time.time()
-            print(f"⏳ API Key #{current_key_index + 1} rate limited - marked for 5min cooldown")
-        
         print(f"❌ Gemini Pro error: {e}")
         return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": f"Pro error: {e}"}
 
@@ -351,8 +340,8 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
             return {"signal": "HOLD", "confidence": 0, "reasoning": "No API keys available"}
         
         # Configure Gemini 2.5 Flash with structured output and thinking mode
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(
+        old_genai.configure(api_key=api_key)
+        model = old_genai.GenerativeModel(
             'gemini-2.5-flash-preview-09-2025',
             generation_config={
                 "response_mime_type": "application/json",
