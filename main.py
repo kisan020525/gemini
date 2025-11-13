@@ -23,7 +23,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 TRADES_SUPABASE_URL = os.getenv("TRADES_SUPABASE_URL")
 TRADES_SUPABASE_KEY = os.getenv("TRADES_SUPABASE_KEY")
 
-# 13 Gemini API Keys for analysis (250 RPD each = 3250 total)
+# 15 Gemini API Keys for dual model system
 GEMINI_API_KEYS = [
     os.getenv("GEMINI_API_KEY_1"),
     os.getenv("GEMINI_API_KEY_2"), 
@@ -37,7 +37,9 @@ GEMINI_API_KEYS = [
     os.getenv("GEMINI_API_KEY_10"),
     os.getenv("GEMINI_API_KEY_11"),
     os.getenv("GEMINI_API_KEY_12"),
-    os.getenv("GEMINI_API_KEY_13")
+    os.getenv("GEMINI_API_KEY_13"),
+    os.getenv("GEMINI_API_KEY_14"),
+    os.getenv("GEMINI_API_KEY_15")
 ]
 
 # 2 Gemini Lite API Keys for trade management (1000 RPD each = 2000 total)
@@ -58,12 +60,19 @@ IST = timezone(timedelta(hours=5, minutes=30))
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)  # For candles
 trades_supabase = create_client(TRADES_SUPABASE_URL, TRADES_SUPABASE_KEY) if TRADES_SUPABASE_URL else None
 
-# API Key rotation for both models
+# API Key rotation for dual model system (15 keys)
 current_api_key_index = 0
-api_key_last_used = [0] * 13   # Track last usage time for 13 keys
-api_key_daily_count = [0] * 13  # Track daily usage for 13 keys
-api_key_daily_reset = [0] * 13  # Track daily reset time for 13 keys
-api_key_usage_count = [0] * 13  # Legacy compatibility for 13 keys
+api_key_last_used = [0] * 15   # Track last usage time for 15 keys
+api_key_daily_count_pro = [0] * 15  # Track Pro model usage (50 RPD each)
+api_key_daily_count_flash = [0] * 15  # Track Flash model usage (250 RPD each)
+api_key_daily_reset = [0] * 15  # Track daily reset time for 15 keys
+api_key_usage_count = [0] * 15  # Legacy compatibility for 15 keys
+
+# Shared memory for dual AI system
+pro_analysis_memory = []  # Store Pro's complete analysis
+flash_analysis_memory = []  # Store Flash's analysis
+last_pro_analysis = None  # Latest Pro analysis for Flash to use
+analysis_counter = 0  # Track analysis cycles
 
 # Lite model rotation
 current_lite_key_index = 0
@@ -132,44 +141,57 @@ def get_next_lite_api_key() -> str:
     print("⏳ All Lite API keys cooling down, waiting...")
     return None
 
-def get_next_api_key() -> str:
-    """Ultra-conservative API key management for free tier"""
-    global current_api_key_index, api_key_last_used, api_key_daily_count, api_key_daily_reset
+def get_next_api_key(model_type="flash") -> str:
+    """Get next available API key for Pro or Flash model"""
+    global current_api_key_index, api_key_last_used, api_key_daily_count_pro, api_key_daily_count_flash, api_key_daily_reset
     
     current_time = time.time()
     
-    # Reset daily counters (every 24 hours)
-    for i in range(13):
+    # Reset daily counters at midnight (every 24 hours)
+    for i in range(15):
         if current_time - api_key_daily_reset[i] > 86400:  # 24 hours
-            api_key_daily_count[i] = 0
+            api_key_daily_count_pro[i] = 0
+            api_key_daily_count_flash[i] = 0
             api_key_daily_reset[i] = current_time
             print(f"🔄 Reset daily counter for API Key #{i + 1}")
     
-    # Find available API key with strict limits
-    for attempt in range(6):
-        key_index = (current_api_key_index + attempt) % 13
+    # Set rate limits based on model type
+    if model_type == "pro":
+        daily_limit = 50  # Pro model: 50 RPD
+        daily_count = api_key_daily_count_pro
+        min_interval = 120  # 2 minutes between Pro calls
+    else:  # flash
+        daily_limit = 250  # Flash model: 250 RPD
+        daily_count = api_key_daily_count_flash
+        min_interval = 60  # 1 minute between Flash calls
+    
+    # Find available API key
+    for attempt in range(15):
+        key_index = (current_api_key_index + attempt) % 15
         
-        # Check daily limit (max 250 per day per key = 3250 total)
-        if api_key_daily_count[key_index] >= 250:
+        # Check daily limit
+        if daily_count[key_index] >= daily_limit:
             continue
             
-        # Check minimum time between calls (1 minute for higher throughput)
+        # Check minimum time between calls
         time_since_last = current_time - api_key_last_used[key_index]
-        if time_since_last < 60:  # 1 minute
+        if time_since_last < min_interval:
             continue
         
         # This key is available
         current_api_key_index = key_index
         api_key_last_used[key_index] = current_time
-        api_key_daily_count[key_index] += 1
+        daily_count[key_index] += 1
         
         api_key = GEMINI_API_KEYS[key_index]
         if api_key:
-            print(f"🔑 Using API Key #{key_index + 1} (Daily: {api_key_daily_count[key_index]}/250)")
+            model_name = "Pro" if model_type == "pro" else "Flash"
+            print(f"🔑 Using {model_name} API Key #{key_index + 1} (Daily: {daily_count[key_index]}/{daily_limit})")
             return api_key
     
     # No keys available
-    print("⏳ All API keys cooling down, waiting...")
+    model_name = "Pro" if model_type == "pro" else "Flash"
+    print(f"⏳ All {model_name} API keys cooling down, waiting...")
     return None
 
 async def fetch_latest_candles(limit: int = 6000) -> List[Dict]:
@@ -221,8 +243,108 @@ def format_candles_for_gemini(candles: List[Dict]) -> str:
     
     return formatted_data
 
-async def get_gemini_signal(candles_data: str, current_price: float) -> Dict:
-    """Get trading signal with ultra-conservative rate limiting"""
+async def get_gemini_pro_analysis(candles_data: str, current_price: float) -> Dict:
+    """Get strategic analysis from Gemini 2.5 Pro (every 2 minutes)"""
+    global pro_analysis_memory, last_pro_analysis
+    
+    try:
+        # Get Pro API key
+        api_key = get_next_api_key("pro")
+        if not api_key:
+            print("🚫 No Pro API keys available, using last analysis")
+            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "No Pro API available"}
+        
+        # Configure Gemini 2.5 Pro
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            'gemini-2.0-flash-exp',  # Using Pro model
+            generation_config={
+                "response_mime_type": "application/json",
+                "response_schema": {
+                    "type": "object",
+                    "properties": {
+                        "strategic_thinking": {"type": "string"},
+                        "market_analysis": {"type": "string"},
+                        "trend_direction": {"type": "string"},
+                        "key_levels": {"type": "object"},
+                        "entry_conditions": {"type": "string"},
+                        "risk_assessment": {"type": "string"},
+                        "signal": {"type": "string"},
+                        "confidence": {"type": "integer"},
+                        "entry": {"type": "number"},
+                        "stop_loss": {"type": "number"},
+                        "take_profit": {"type": "number"},
+                        "position_size_recommendation": {"type": "number"},
+                        "time_horizon": {"type": "string"},
+                        "reasoning": {"type": "string"}
+                    },
+                    "required": ["strategic_thinking", "market_analysis", "trend_direction", "signal", "confidence", "entry", "stop_loss", "take_profit", "reasoning"]
+                }
+            },
+            system_instruction="You are Gemini 2.5 Pro - the STRATEGIC MASTER AI. Provide deep market analysis and strategic direction for the Flash model to execute."
+        )
+        
+        # Get Flash's recent analysis for context
+        flash_context = ""
+        if flash_analysis_memory:
+            recent_flash = flash_analysis_memory[-3:]  # Last 3 Flash analyses
+            flash_context = f"\n\nFLASH MODEL'S RECENT ANALYSIS:\n{json.dumps(recent_flash, indent=2)}"
+        
+        prompt = f"""
+        You are GEMINI 2.5 PRO - The Strategic Master AI for Bitcoin Trading.
+        
+        Your role: Provide DEEP STRATEGIC ANALYSIS that Gemini 2.5 Flash will use for tactical execution.
+        
+        STRATEGIC ANALYSIS FRAMEWORK:
+        1. Analyze market structure and major trends
+        2. Identify key support/resistance levels
+        3. Assess risk/reward scenarios
+        4. Provide strategic direction and entry conditions
+        5. Set position sizing and risk parameters
+        
+        Current Bitcoin Price: ${current_price}
+        
+        COMPLETE MARKET DATA (6000 candles):
+        {candles_data[-3000:]}
+        
+        {flash_context}
+        
+        PROVIDE COMPLETE STRATEGIC ANALYSIS:
+        - Deep market structure analysis
+        - Strategic trend direction
+        - Key levels and entry conditions
+        - Risk assessment and position sizing
+        - Time horizon for the strategy
+        
+        Flash model will see your COMPLETE response and use it for tactical decisions.
+        """
+        
+        response = model.generate_content(prompt)
+        
+        try:
+            pro_analysis = json.loads(response.text.strip())
+            pro_analysis['timestamp'] = datetime.now(IST).isoformat()
+            pro_analysis['model'] = 'Pro'
+            
+            # Store in memory
+            pro_analysis_memory.append(pro_analysis)
+            if len(pro_analysis_memory) > 10:  # Keep last 10 Pro analyses
+                pro_analysis_memory.pop(0)
+            
+            # Update last analysis for Flash
+            last_pro_analysis = pro_analysis
+            
+            return pro_analysis
+            
+        except json.JSONDecodeError:
+            print("❌ Pro JSON decode error")
+            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro JSON error"}
+            
+    except Exception as e:
+        print(f"❌ Gemini Pro error: {e}")
+        return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": f"Pro error: {e}"}
+
+async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Dict:
     try:
         # Get next available API key
         api_key = get_next_api_key()
@@ -885,9 +1007,12 @@ async def print_stats():
     win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
     total_return = ((demo_balance - DEMO_CAPITAL) / DEMO_CAPITAL * 100)
     
-    # Show API key usage
-    total_daily_usage = sum(api_key_daily_count)
-    print(f"📈 Balance: ${demo_balance:.0f} | Return: {total_return:.1f}% | Trades: {total_trades} | Win: {win_rate:.0f}% | API: {total_daily_usage}/3250")
+    # Calculate total daily usage for both models
+    total_pro_usage = sum(api_key_daily_count_pro)
+    total_flash_usage = sum(api_key_daily_count_flash)
+    
+    print(f"📈 Balance: ${demo_balance:.0f} | Return: {total_return:.1f}% | Trades: {total_trades} | Win: {win_rate:.0f}%")
+    print(f"🔑 API Usage: Pro {total_pro_usage}/750 | Flash {total_flash_usage}/3750")
 
 async def wait_for_new_candle(last_candle_time: str) -> bool:
     """Wait for new candle to be added to Supabase"""
@@ -1093,7 +1218,7 @@ async def main():
     print("🕐 Triggered by new candle updates")
     
     valid_keys = [key for key in GEMINI_API_KEYS if key]
-    print(f"🔑 API Keys loaded: {len(valid_keys)}/13")
+    print(f"🔑 API Keys loaded: {len(valid_keys)}/15")
     
     if len(valid_keys) == 0:
         print("❌ No API keys found!")
@@ -1132,11 +1257,26 @@ async def main():
                 else:
                     print(f"📊 Open {current_position.direction.upper()} @ ${current_position.entry_price:.0f} | SL: ${current_position.stop_loss:.0f} | Current: ${current_price:.0f}")
                 
-                # Analyze with full 6k dataset
+                # Dual AI Analysis System
                 candles_data = format_candles_for_gemini(candles)
-                signal = await get_gemini_signal(candles_data, current_price)
                 
-                print(f"🧠 Gemini: {signal.get('signal')} | Confidence: {signal.get('confidence')}/10")
+                global analysis_counter
+                analysis_counter += 1
+                
+                # Run Pro analysis every 2 minutes (even cycles)
+                if analysis_counter % 2 == 0:
+                    print("🧠 Running Gemini 2.5 Pro Strategic Analysis...")
+                    pro_signal = await get_gemini_pro_analysis(candles_data, current_price)
+                    print(f"🎯 Pro Strategy: {pro_signal.get('signal')} | Confidence: {pro_signal.get('confidence')}/10")
+                    print(f"📊 Pro Direction: {pro_signal.get('trend_direction', 'Unknown')}")
+                
+                # Run Flash analysis every minute
+                print("⚡ Running Gemini 2.5 Flash Tactical Analysis...")
+                signal = await get_gemini_flash_signal(candles_data, current_price)
+                
+                # Display analysis results
+                model_used = "Flash + Pro" if last_pro_analysis else "Flash Only"
+                print(f"🧠 {model_used}: {signal.get('signal')} | Confidence: {signal.get('confidence')}/10")
                 print(f"💭 AI Thinking: {signal.get('thinking', 'N/A')[:100]}...")
                 print(f"🤖 AI Analysis: {signal.get('analysis', 'N/A')[:80]}...")
                 print(f"📊 Reasoning: {signal.get('reasoning', 'N/A')[:80]}...")
