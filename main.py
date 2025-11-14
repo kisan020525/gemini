@@ -99,6 +99,7 @@ async def validate_pro_keys():
 # Initialize rate limiter
 pro_rate_limiter = GeminiRateLimiter()
 working_pro_keys = []
+blocked_pro_keys = set()  # Track keys that hit rate limits
 
 # Configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL")  # For candles (read-only)
@@ -362,13 +363,13 @@ def format_candles_for_gemini(candles: List[Dict]) -> str:
     return formatted_data
 
 async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry_count: int = 0) -> Dict:
-    """Get strategic analysis from Gemini 2.5 Pro with proper rate limiting"""
-    global pro_analysis_memory, last_pro_analysis
+    """Get strategic analysis from Gemini 2.5 Pro with dynamic key filtering"""
+    global pro_analysis_memory, last_pro_analysis, working_pro_keys, blocked_pro_keys
     
     # Prevent infinite retries - max 3 attempts
     if retry_count >= 3:
-        print("❌ All Pro keys overloaded - using Flash only")
-        return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "All Pro keys overloaded"}
+        print("❌ All Pro keys exhausted - using Flash only")
+        return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "All Pro keys exhausted"}
     
     try:
         # Check rate limiter first
@@ -376,13 +377,15 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
             print("🚫 Pro daily limit reached - using Flash only")
             return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro daily limit reached"}
         
-        # Get working Pro API key
-        if not working_pro_keys:
-            print("🚫 No working Pro API keys available")
-            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "No working Pro keys"}
+        # Filter out blocked keys from working keys
+        available_keys = [(idx, key) for idx, key in working_pro_keys if idx not in blocked_pro_keys]
         
-        # Use first working key (rotate through them)
-        key_index, api_key = working_pro_keys[pro_rate_limiter.daily_count % len(working_pro_keys)]
+        if not available_keys:
+            print("🚫 No available Pro keys (all blocked) - using Flash only")
+            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "All Pro keys blocked"}
+        
+        # Use next available key (rotate through them)
+        key_index, api_key = available_keys[pro_rate_limiter.daily_count % len(available_keys)]
         
         prompt = f"""
         You are GEMINI 2.5 PRO - Strategic Master AI for Bitcoin Trading.
@@ -423,7 +426,7 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
             }
         )
         
-        print(f"📤 Pro Request #{pro_rate_limiter.daily_count}/{pro_rate_limiter.rpd_limit}")
+        print(f"📤 Pro Request #{pro_rate_limiter.daily_count}/{pro_rate_limiter.rpd_limit} (Key #{key_index})")
         response = model.generate_content(prompt)
         
         try:
@@ -437,7 +440,7 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
                 pro_analysis_memory.pop(0)
             
             last_pro_analysis = pro_analysis
-            print(f"✅ Pro Success! ({pro_rate_limiter.daily_count}/{pro_rate_limiter.rpd_limit} today)")
+            print(f"✅ Pro Success! Key #{key_index} ({pro_rate_limiter.daily_count}/{pro_rate_limiter.rpd_limit} today)")
             return pro_analysis
             
         except json.JSONDecodeError as e:
@@ -447,8 +450,13 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
     except Exception as e:
         error_msg = str(e)
         if "429" in error_msg or "quota" in error_msg.lower():
-            print(f"⏳ Pro quota exceeded - using Flash only")
-            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro quota exceeded"}
+            # Block this key and try next one
+            blocked_pro_keys.add(key_index)
+            print(f"🚫 Pro Key #{key_index} rate limited - blocked from Pro model")
+            print(f"📊 Available Pro keys: {len(available_keys)-1}/{len(working_pro_keys)}")
+            
+            # Try next available key
+            return await get_gemini_pro_analysis(candles_data, current_price, retry_count + 1)
         
         print(f"❌ Gemini Pro error: {e}")
         return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": f"Pro error: {e}"}
