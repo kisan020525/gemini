@@ -890,6 +890,18 @@ async def execute_gemini_action(signal: Dict, current_price: float) -> Optional[
             print(f"⚠️ No position to close")
         return None
         
+    elif action in ['LONG', 'SHORT']:
+        # If position exists, close and switch
+        if current_position:
+            new_direction = 'long' if action == 'LONG' else 'short'
+            print(f"🔄 GEMINI SWITCH: Closing {current_position.direction.upper()} @ ${current_price:.0f}")
+            await close_position(current_price, "Gemini Switch")
+            return await open_new_position(signal, current_price, new_direction)
+        else:
+            # No position, open new one
+            new_direction = 'long' if action == 'LONG' else 'short'
+            return await open_new_position(signal, current_price, new_direction)
+    
     elif action in ['CLOSE_AND_LONG', 'CLOSE_AND_SHORT']:
         # Close current position first
         if current_position:
