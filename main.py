@@ -944,17 +944,19 @@ async def open_new_position(signal: Dict, current_price: float, direction: str) 
     
     if trades_supabase:
         try:
+            print(f"💾 Saving trade to Supabase: {TRADES_SUPABASE_URL[:50]}...")
             result = trades_supabase.table("paper_trades").insert(trade_data).execute()
             print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
             print(f"✅ Trade saved to database successfully")
+            print(f"📊 DB Response: {len(result.data)} record(s) inserted")
         except Exception as e:
             print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
             print(f"❌ TRADES DB ERROR: {str(e)}")
     else:
         print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
         print(f"⚠️ NO TRADES DATABASE CONNECTION")
-        print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
-        print("⚠️ Using local storage - no trades DB configured")
+        print(f"🔍 TRADES_SUPABASE_URL: {TRADES_SUPABASE_URL}")
+        print(f"🔍 TRADES_SUPABASE_KEY: {'SET' if TRADES_SUPABASE_KEY else 'NOT SET'}")
     
     return trade
 
