@@ -65,8 +65,41 @@ class GeminiRateLimiter:
         self.daily_count += 1
         return True
 
+async def validate_pro_keys():
+    """Test all Pro API keys to find working ones"""
+    working_keys = []
+    
+    for i, api_key in enumerate(GEMINI_API_KEYS):
+        if not api_key:
+            continue
+            
+        try:
+            print(f"🔍 Testing Pro Key #{i+1}...")
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-2.5-pro')
+            
+            response = model.generate_content("Say 'OK'")
+            if response.text.strip():
+                working_keys.append((i+1, api_key))
+                print(f"✅ Pro Key #{i+1}: Working")
+            else:
+                print(f"❌ Pro Key #{i+1}: Empty response")
+                
+        except Exception as e:
+            if "429" in str(e):
+                working_keys.append((i+1, api_key))  # Key works but rate limited
+                print(f"⚠️ Pro Key #{i+1}: Working (rate limited)")
+            else:
+                print(f"❌ Pro Key #{i+1}: {str(e)[:50]}...")
+                
+        await asyncio.sleep(2)  # Small delay between tests
+    
+    print(f"📊 Working Pro Keys: {len(working_keys)}/15")
+    return working_keys
+
 # Initialize rate limiter
 pro_rate_limiter = GeminiRateLimiter()
+working_pro_keys = []
 
 # Configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL")  # For candles (read-only)
@@ -344,11 +377,13 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
             print("🚫 Pro daily limit reached - using Flash only")
             return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro daily limit reached"}
         
-        # Get Pro API key
-        api_key = get_next_api_key("pro")
-        if not api_key:
-            print("🚫 No Pro API keys available, using last analysis")
-            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "No Pro API available"}
+        # Get working Pro API key
+        if not working_pro_keys:
+            print("🚫 No working Pro API keys available")
+            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "No working Pro keys"}
+        
+        # Use first working key (rotate through them)
+        key_index, api_key = working_pro_keys[pro_rate_limiter.daily_count % len(working_pro_keys)]
         
         prompt = f"""
         You are GEMINI 2.5 PRO - Strategic Master AI for Bitcoin Trading.
@@ -1295,7 +1330,7 @@ RECENT TRADES:
 
 async def main():
     """Main trading loop triggered by new candles"""
-    global current_position, demo_balance, total_trades, winning_trades, analysis_counter
+    global current_position, demo_balance, total_trades, winning_trades, analysis_counter, working_pro_keys
     
     print("🤖 Gemini Trading Bot - 6K Candle Analysis")
     print(f"💰 Demo Capital: ${DEMO_CAPITAL}")
@@ -1307,6 +1342,10 @@ async def main():
     if len(valid_keys) == 0:
         print("❌ No API keys found!")
         return
+    
+    # Validate Pro keys on startup
+    print("🔍 Validating Pro API keys...")
+    working_pro_keys = await validate_pro_keys()
     
     # Sync position from database on startup
     await sync_position_from_database()
@@ -1348,8 +1387,8 @@ async def main():
                 global analysis_counter
                 analysis_counter += 1
                 
-                # Run Pro analysis every 2 minutes (even cycles) - stop at 50 daily requests
-                if analysis_counter % 2 == 0 and sum(api_key_daily_count_pro) < 50:
+                # Run Pro analysis every 4 minutes (every 4th cycle) - stop at 50 daily requests
+                if analysis_counter % 4 == 0 and sum(api_key_daily_count_pro) < 50:
                     print("🧠 Running Gemini 2.5 Pro Strategic Analysis...")
                     pro_signal = await get_gemini_pro_analysis(candles_data, current_price)
                     print(f"🎯 Pro Strategy: {pro_signal.get('signal')} | Confidence: {pro_signal.get('confidence')}/10")
