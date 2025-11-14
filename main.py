@@ -455,8 +455,10 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
             
         except asyncio.TimeoutError:
             print(f"⏰ Pro Request timeout (30s) - Key #{key_index}")
-            # Block this key and try next one
+            # Block this key and wait before trying next one
             blocked_pro_keys.add(key_index)
+            print("⏳ Waiting 60s before trying next Pro key (rate limit compliance)...")
+            await asyncio.sleep(60)  # Wait 60s before trying next key
             return await get_gemini_pro_analysis(candles_data, current_price, retry_count + 1)
         except Exception as api_error:
             print(f"❌ Pro API error: {api_error}")
@@ -483,10 +485,14 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
     except Exception as e:
         error_msg = str(e)
         if "429" in error_msg or "quota" in error_msg.lower():
-            # Block this key and try next one
+            # Block this key and wait before trying next one
             blocked_pro_keys.add(key_index)
             print(f"🚫 Pro Key #{key_index} rate limited - blocked from Pro model")
             print(f"📊 Available Pro keys: {len(available_keys)-1}/{len(working_pro_keys)}")
+            
+            # Wait 60s before trying next key to respect rate limits
+            print("⏳ Waiting 60s before trying next Pro key (rate limit compliance)...")
+            await asyncio.sleep(60)
             
             # Try next available key
             return await get_gemini_pro_analysis(candles_data, current_price, retry_count + 1)
