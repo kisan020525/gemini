@@ -942,21 +942,31 @@ async def open_new_position(signal: Dict, current_price: float, direction: str) 
         "partial_profit_50": 0.0  # Track 50% TP partial profit
     }
     
-    if trades_supabase:
+async def save_trade_to_supabase(trade_data, max_retries=3):
+    """Save trade to Supabase with retry logic"""
+    for attempt in range(max_retries):
         try:
-            print(f"💾 Saving trade to Supabase: {TRADES_SUPABASE_URL[:50]}...")
-            result = trades_supabase.table("paper_trades").insert(trade_data).execute()
-            print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
-            print(f"✅ Trade saved to database successfully")
-            print(f"📊 DB Response: {len(result.data)} record(s) inserted")
+            if trades_supabase:
+                print(f"💾 Saving trade to Supabase (attempt {attempt + 1}/{max_retries})")
+                result = trades_supabase.table("paper_trades").insert(trade_data).execute()
+                print(f"✅ Trade saved to database successfully")
+                print(f"📊 DB Response: {len(result.data)} record(s) inserted")
+                return True
+            else:
+                print(f"⚠️ NO TRADES DATABASE CONNECTION")
+                return False
         except Exception as e:
-            print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
-            print(f"❌ TRADES DB ERROR: {str(e)}")
-    else:
-        print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
-        print(f"⚠️ NO TRADES DATABASE CONNECTION")
-        print(f"🔍 TRADES_SUPABASE_URL: {TRADES_SUPABASE_URL}")
-        print(f"🔍 TRADES_SUPABASE_KEY: {'SET' if TRADES_SUPABASE_KEY else 'NOT SET'}")
+            print(f"❌ TRADES DB ERROR (attempt {attempt + 1}): {str(e)}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2)  # Wait 2 seconds before retry
+            else:
+                print(f"❌ Failed to save trade after {max_retries} attempts")
+                return False
+    return False
+
+    # Save trade to database with retry logic
+    print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
+    await save_trade_to_supabase(trade_data)
     
     return trade
 
