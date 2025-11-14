@@ -537,6 +537,20 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         - CLOSE_AND_LONG: Close current position AND immediately open long
         - CLOSE_AND_SHORT: Close current position AND immediately open short
 
+        CRITICAL PERFORMANCE ISSUE - WIN RATE IS 0%:
+        - MOST TRADES HIT STOP LOSS - You are holding losing positions too long!
+        - TAKE PROFITS EARLY - Close profitable trades at +$20-50 profit
+        - CUT LOSSES FAST - Close losing trades at -$15-30 loss (before SL)
+        - BE MORE AGGRESSIVE - Don't wait for perfect setups
+        - SCALP MENTALITY - Quick in, quick out with small profits
+        
+        IMMEDIATE ACTION REQUIRED:
+        - If position is +$15+ profit → STRONGLY consider CLOSE
+        - If position is -$20+ loss → STRONGLY consider CLOSE  
+        - If price moves against you 2-3 candles → EXIT
+        - If you see any reversal signs → CLOSE immediately
+        - NEVER let profitable trades turn into losses
+        
         TRADING FREEDOM:
         - ONLY trade when 90%+ confident (confidence: 9-10)
         - You have COMPLETE FREEDOM to choose trade duration and management
