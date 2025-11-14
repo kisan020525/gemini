@@ -1287,6 +1287,7 @@ async def main():
                 # Skip analysis if position was just closed
                 if not current_position or current_position.status != 'open':
                     print("📊 No open position - analyzing for new trade")
+                    current_position = None  # Ensure it's properly cleared
                 else:
                     print(f"📊 Open {current_position.direction.upper()} @ ${current_position.entry_price:.0f} | SL: ${current_position.stop_loss:.0f} | Current: ${current_price:.0f}")
                 
