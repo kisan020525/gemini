@@ -87,8 +87,7 @@ async def validate_pro_keys():
                 
         except Exception as e:
             if "429" in str(e):
-                working_keys.append((i+1, api_key))  # Key works but rate limited
-                print(f"⚠️ Pro Key #{i+1}: Working (rate limited)")
+                print(f"⚠️ Pro Key #{i+1}: Rate limited - excluded from Pro model")
             else:
                 print(f"❌ Pro Key #{i+1}: {str(e)[:50]}...")
                 
