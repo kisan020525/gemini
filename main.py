@@ -427,7 +427,23 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
         )
         
         print(f"📤 Pro Request #{pro_rate_limiter.daily_count}/{pro_rate_limiter.rpd_limit} (Key #{key_index})")
-        response = model.generate_content(prompt)
+        
+        try:
+            # Add timeout for Pro model request
+            response = await asyncio.wait_for(
+                asyncio.to_thread(model.generate_content, prompt),
+                timeout=30.0  # 30 second timeout
+            )
+            print(f"📥 Pro Response received from Key #{key_index}")
+            
+        except asyncio.TimeoutError:
+            print(f"⏰ Pro Request timeout (30s) - Key #{key_index}")
+            # Block this key and try next one
+            blocked_pro_keys.add(key_index)
+            return await get_gemini_pro_analysis(candles_data, current_price, retry_count + 1)
+        except Exception as api_error:
+            print(f"❌ Pro API error: {api_error}")
+            raise api_error
         
         try:
             pro_analysis = json.loads(response.text.strip())
