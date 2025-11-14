@@ -964,6 +964,67 @@ async def save_trade_to_supabase(trade_data, max_retries=3):
                 return False
     return False
 
+async def open_new_position(signal: Dict, current_price: float, direction: str) -> Optional[Trade]:
+    """Execute paper trade - STRICTLY ONE AT A TIME"""
+    global current_position, demo_balance, total_trades
+    
+    # Only trade with VERY HIGH confidence (9+ out of 10 = 90%+)
+    if signal['signal'] == 'HOLD' or signal['confidence'] < 9:
+        return None
+    
+    # Calculate trade parameters
+    entry = float(signal.get('entry', current_price))
+    stop_loss = float(signal.get('stop_loss', current_price * 0.98))
+    take_profit = float(signal.get('take_profit', current_price * 1.04))
+    risk_amount = 50.0  # Fixed $50 risk per trade
+    
+    # Validate trade setup
+    if direction == 'long' and stop_loss >= entry:
+        print(f"⚠️ Invalid LONG setup: SL ${stop_loss} should be < entry ${entry}")
+        return None
+    
+    if direction == 'short' and stop_loss <= entry:
+        print(f"⚠️ Invalid SHORT setup: SL ${stop_loss} should be > entry ${entry}")
+        return None
+    
+    position_size = calculate_position_size(entry, stop_loss, risk_amount)
+    
+    if position_size <= 0:
+        print(f"⚠️ Invalid position size: {position_size}")
+        return None
+    
+    # Log trade setup with current capital
+    print(f"📋 Trade Setup: {direction.upper()} ${entry} | SL: ${stop_loss} | TP: ${take_profit} | Size: {position_size:.4f} BTC")
+    print(f"💰 Current Capital: ${demo_balance:.2f} | Risk: ${risk_amount:.2f}")
+    
+    # Create trade
+    trade = Trade(entry, stop_loss, take_profit, position_size, direction)
+    current_position = trade
+    total_trades += 1
+    
+    # Save to separate trades database
+    trade_data = {
+        "trade_id": total_trades,
+        "timestamp": trade.entry_time.isoformat(),
+        "created_at": trade.entry_time.isoformat(),  # Add created_at
+        "direction": direction,
+        "entry_price": entry,
+        "stop_loss": stop_loss,
+        "take_profit": take_profit,
+        "position_size": position_size,
+        "risk_amount": risk_amount,
+        "status": "open",
+        "pnl": 0.0,
+        "exit_price": None,
+        "exit_time": None,
+        "close_reason": None,
+        "capital_before": demo_balance,
+        "capital_after": demo_balance,   # Will update when closed
+        "total_pnl": demo_balance - 10000.0,  # Running total P&L
+        "trade_result": "OPEN",  # Easy status indicator
+        "partial_profit_50": 0.0  # Track 50% TP partial profit
+    }
+    
     # Save trade to database with retry logic
     print(f"🚀 TRADE #{total_trades}: {direction.upper()} @ ${entry:.0f} | SL: ${stop_loss:.0f} | TP: ${take_profit:.0f}")
     await save_trade_to_supabase(trade_data)
