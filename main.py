@@ -1246,6 +1246,8 @@ RECENT TRADES:
 
 async def main():
     """Main trading loop triggered by new candles"""
+    global current_position, demo_balance, total_trades, winning_trades, analysis_counter
+    
     print("🤖 Gemini Trading Bot - 6K Candle Analysis")
     print(f"💰 Demo Capital: ${DEMO_CAPITAL}")
     print("🕐 Triggered by new candle updates")
