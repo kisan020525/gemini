@@ -14,8 +14,59 @@ from typing import Dict, List, Optional
 import google.generativeai as genai
 from supabase import create_client
 from dotenv import load_dotenv
+from collections import deque
 
 load_dotenv()
+
+class GeminiRateLimiter:
+    def __init__(self, rpm_limit=2, rpd_limit=50, min_interval=30):
+        self.rpm_limit = rpm_limit
+        self.rpd_limit = rpd_limit  
+        self.min_interval = min_interval
+        self.request_times = deque()
+        self.daily_count = 0
+        self.last_reset = datetime.now().date()
+        
+    async def wait_for_slot(self):
+        now = datetime.now()
+        
+        # Reset daily counter at midnight
+        if now.date() > self.last_reset:
+            self.daily_count = 0
+            self.last_reset = now.date()
+            
+        # Check daily limit
+        if self.daily_count >= self.rpd_limit:
+            print(f"⏳ Daily limit reached ({self.daily_count}/{self.rpd_limit})")
+            return False
+            
+        # Clean old requests (older than 1 minute)
+        cutoff = now - timedelta(minutes=1)
+        while self.request_times and self.request_times[0] < cutoff:
+            self.request_times.popleft()
+            
+        # Wait for RPM slot
+        if len(self.request_times) >= self.rpm_limit:
+            wait_time = 60 - (now - self.request_times[0]).total_seconds()
+            if wait_time > 0:
+                print(f"⏳ Rate limit window full. Waiting {wait_time:.1f}s for slot...")
+                await asyncio.sleep(wait_time)
+                
+        # Wait for minimum interval
+        if self.request_times:
+            time_since_last = (now - self.request_times[-1]).total_seconds()
+            if time_since_last < self.min_interval:
+                wait_time = self.min_interval - time_since_last
+                print(f"⏳ Waiting {wait_time:.1f}s for minimum interval...")
+                await asyncio.sleep(wait_time)
+                
+        # Record this request
+        self.request_times.append(datetime.now())
+        self.daily_count += 1
+        return True
+
+# Initialize rate limiter
+pro_rate_limiter = GeminiRateLimiter()
 
 # Configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL")  # For candles (read-only)
@@ -279,7 +330,7 @@ def format_candles_for_gemini(candles: List[Dict]) -> str:
     return formatted_data
 
 async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry_count: int = 0) -> Dict:
-    """Get strategic analysis from Gemini 2.5 Pro using direct HTTP API"""
+    """Get strategic analysis from Gemini 2.5 Pro with proper rate limiting"""
     global pro_analysis_memory, last_pro_analysis
     
     # Prevent infinite retries - max 3 attempts
@@ -288,6 +339,11 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
         return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "All Pro keys overloaded"}
     
     try:
+        # Check rate limiter first
+        if not await pro_rate_limiter.wait_for_slot():
+            print("🚫 Pro daily limit reached - using Flash only")
+            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro daily limit reached"}
+        
         # Get Pro API key
         api_key = get_next_api_key("pro")
         if not api_key:
@@ -333,6 +389,7 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
             }
         )
         
+        print(f"📤 Pro Request #{pro_rate_limiter.daily_count}/{pro_rate_limiter.rpd_limit}")
         response = model.generate_content(prompt)
         
         try:
@@ -346,6 +403,7 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
                 pro_analysis_memory.pop(0)
             
             last_pro_analysis = pro_analysis
+            print(f"✅ Pro Success! ({pro_rate_limiter.daily_count}/{pro_rate_limiter.rpd_limit} today)")
             return pro_analysis
             
         except json.JSONDecodeError as e:
@@ -354,18 +412,9 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
             
     except Exception as e:
         error_msg = str(e)
-        if "503" in error_msg or "overloaded" in error_msg.lower():
-            # Mark this API key as overloaded (5 min cooldown)
-            current_key_index = current_pro_key_index
-            api_key_rate_limited[current_key_index] = time.time()
-            print(f"⏳ Pro Key #{current_key_index + 1} overloaded - trying next key")
-            
-            # Wait 60 seconds before trying next key (free tier needs longer delay)
-            await asyncio.sleep(60)
-            
-            # Try next key (with retry limit)
-            pro_key_call_count = 49  # Force rotation to next key
-            return await get_gemini_pro_analysis(candles_data, current_price, retry_count + 1)
+        if "429" in error_msg or "quota" in error_msg.lower():
+            print(f"⏳ Pro quota exceeded - using Flash only")
+            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro quota exceeded"}
         
         print(f"❌ Gemini Pro error: {e}")
         return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": f"Pro error: {e}"}
