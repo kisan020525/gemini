@@ -397,7 +397,20 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
         key_index, api_key = available_keys[pro_rate_limiter.daily_count % len(available_keys)]
         
         prompt = f"""
-        You are GEMINI 2.5 PRO - Strategic Master AI for Bitcoin Trading.
+        You are GEMINI 2.5 PRO - Strategic Master AI in a DUAL AI TRADING SYSTEM.
+        
+        SYSTEM OVERVIEW:
+        - You (PRO) provide STRATEGIC analysis every 4 minutes
+        - GEMINI 2.5 FLASH provides TACTICAL execution every minute
+        - Flash uses YOUR strategic guidance to make trading decisions
+        - You both share memory and collaborate on trades
+        
+        YOUR ROLE AS STRATEGIC MASTER:
+        - Analyze long-term market trends and structure
+        - Identify major support/resistance levels
+        - Provide strategic direction for Flash model
+        - Focus on big-picture market analysis
+        - Your analysis guides Flash's tactical decisions
         
         Current Bitcoin Price: ${current_price}
         Market Data: {candles_data[-2000:]}
@@ -409,8 +422,8 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
             "entry": {current_price},
             "stop_loss": price_level,
             "take_profit": price_level,
-            "trend_direction": "Overall trend",
-            "reasoning": "Strategic analysis"
+            "trend_direction": "Overall trend description",
+            "reasoning": "Strategic analysis and market structure insights"
         }}
         """
         
@@ -520,6 +533,21 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         
         # Unleash full AI analytical power with PAST PERFORMANCE
         prompt = f"""
+        You are GEMINI 2.5 FLASH - Tactical Execution AI in a DUAL AI TRADING SYSTEM.
+        
+        SYSTEM OVERVIEW:
+        - You (FLASH) handle TACTICAL execution every minute
+        - GEMINI 2.5 PRO provides STRATEGIC guidance every 4 minutes
+        - You receive Pro's strategic analysis and use it for tactical decisions
+        - You both share memory and collaborate on trades
+        
+        YOUR ROLE AS TACTICAL EXECUTOR:
+        - Execute trades based on Pro's strategic guidance + your tactical analysis
+        - Make minute-by-minute trading decisions
+        - Handle position management (open, close, hold, switch)
+        - Combine Pro's strategy with real-time market conditions
+        - You have FINAL AUTHORITY on all trade execution
+        
         You are an advanced AI TRADER with COMPLETE CONTROL over all trading decisions.
 
         FULL TRADING CONTROL:
