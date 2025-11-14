@@ -368,8 +368,16 @@ async def handle_pro_analysis_completion(task_result):
         pro_signal = await task_result
         print(f"🎯 Pro Strategy: {pro_signal.get('signal')} | Confidence: {pro_signal.get('confidence')}/10")
         print(f"📊 Pro Direction: {pro_signal.get('trend_direction', 'Unknown')}")
+        
+        # Wait 60 seconds after Pro analysis completes before allowing next call
+        print("⏳ Pro analysis cooldown: 60 seconds...")
+        await asyncio.sleep(60)
+        print("✅ Pro analysis ready for next call")
+        
     except Exception as e:
         print(f"❌ Background Pro analysis error: {e}")
+        # Still wait 60s even on error to prevent rapid retries
+        await asyncio.sleep(60)
 
 async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry_count: int = 0) -> Dict:
     """Get strategic analysis from Gemini 2.5 Pro with dynamic key filtering"""
