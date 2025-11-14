@@ -591,6 +591,9 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
 
         {get_analysis_memory_for_gemini()}
 
+        STRATEGIC CONTEXT FROM PRO MODEL:
+        {get_pro_analysis_for_flash()}
+
         {await get_past_trades_for_gemini()}
 
         CURRENT MARKET DATA:
@@ -794,6 +797,22 @@ def get_analysis_memory_for_gemini() -> str:
         memory_text += f"{entry['timestamp']}: ${entry['price']} -> {entry['signal']} (Conf: {entry['confidence']}/10)\n"
     
     return memory_text
+
+def get_pro_analysis_for_flash() -> str:
+    """Format Pro analysis for Flash model context"""
+    if not last_pro_analysis:
+        return "No recent Pro analysis available - Flash operating independently."
+    
+    pro_text = f"""LATEST PRO STRATEGIC ANALYSIS:
+Signal: {last_pro_analysis.get('signal', 'HOLD')}
+Confidence: {last_pro_analysis.get('confidence', 0)}/10
+Trend Direction: {last_pro_analysis.get('trend_direction', 'Unknown')}
+Strategic Reasoning: {last_pro_analysis.get('reasoning', 'No reasoning available')[:200]}...
+Timestamp: {last_pro_analysis.get('timestamp', 'Unknown')}
+
+Use this strategic context to inform your tactical decisions."""
+    
+    return pro_text
     """Calculate position size for risk management"""
     risk_per_unit = abs(entry - stop_loss)
     if risk_per_unit > 0:
