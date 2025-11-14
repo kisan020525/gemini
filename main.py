@@ -362,6 +362,15 @@ def format_candles_for_gemini(candles: List[Dict]) -> str:
     
     return formatted_data
 
+async def handle_pro_analysis_completion(task_result):
+    """Handle Pro analysis completion in background"""
+    try:
+        pro_signal = await task_result
+        print(f"🎯 Pro Strategy: {pro_signal.get('signal')} | Confidence: {pro_signal.get('confidence')}/10")
+        print(f"📊 Pro Direction: {pro_signal.get('trend_direction', 'Unknown')}")
+    except Exception as e:
+        print(f"❌ Background Pro analysis error: {e}")
+
 async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry_count: int = 0) -> Dict:
     """Get strategic analysis from Gemini 2.5 Pro with dynamic key filtering"""
     global pro_analysis_memory, last_pro_analysis, working_pro_keys, blocked_pro_keys
@@ -1410,12 +1419,13 @@ async def main():
                 global analysis_counter
                 analysis_counter += 1
                 
-                # Run Pro analysis every 4 minutes (every 4th cycle) - stop at 50 daily requests
+                # Run Pro analysis every 4 minutes (every 4th cycle) - NON-BLOCKING
                 if analysis_counter % 4 == 0 and sum(api_key_daily_count_pro) < 50:
                     print("🧠 Running Gemini 2.5 Pro Strategic Analysis...")
-                    pro_signal = await get_gemini_pro_analysis(candles_data, current_price)
-                    print(f"🎯 Pro Strategy: {pro_signal.get('signal')} | Confidence: {pro_signal.get('confidence')}/10")
-                    print(f"📊 Pro Direction: {pro_signal.get('trend_direction', 'Unknown')}")
+                    # Start Pro analysis in background - don't wait for it
+                    pro_task = asyncio.create_task(get_gemini_pro_analysis(candles_data, current_price))
+                    # Handle completion in background
+                    asyncio.create_task(handle_pro_analysis_completion(pro_task))
                 
                 # Run Flash analysis every minute
                 print("⚡ Running Gemini 2.5 Flash Tactical Analysis...")
