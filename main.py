@@ -172,7 +172,7 @@ lite_key_daily_reset = [0] * 2
 # Trading state - RESET TO START FRESH
 current_position = None
 demo_balance = 10000.0  # Starting capital - RESET
-total_trades = 0        # Reset trade counter to 0
+total_trades = 0        # Reset trade counter to 0 - START FROM TRADE #1
 analysis_memory = []    # Clear analysis memory for fresh start
 winning_trades = 0      # Reset win counter
 
