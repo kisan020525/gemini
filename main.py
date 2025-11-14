@@ -534,7 +534,7 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         
         # Unleash full AI analytical power with PAST PERFORMANCE
         prompt = f"""
-        You are GEMINI 2.5 FLASH - Tactical Execution AI in a DUAL AI TRADING SYSTEM.
+        You are GEMINI 2.5 FLASH - Tactical Execution AI in a DUAL AI TRADING SYSTEM, GEMINI WE know you have a lots of knowlage about market how they work how market moves just use your full potential to take trades.
         
         SYSTEM OVERVIEW:
         - You (FLASH) handle TACTICAL execution every minute
@@ -554,7 +554,7 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         FULL TRADING CONTROL:
         - You control EVERYTHING: when to open, close, hold, or switch positions
         - Analyze current position (if any) and decide the optimal action
-        - You can close profitable trades early or cut losses before stop loss
+        - You can close profitable trades early or cut losses before stop loss but make sure if new entry is so much powerful and if we dont want to miss that oppotinity or if you think wrong trade taken other wise wait for hit tp/sl 
         - You can switch from LONG to SHORT instantly if market reverses
         - Use your FULL AI intelligence for all trading decisions
 
@@ -568,18 +568,18 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
 
         TRADING FREEDOM:
         - ONLY trade when 90%+ confident (confidence: 9-10)
-        - You have COMPLETE FREEDOM to choose trade duration and management
-        - Quality over quantity - Better to miss trades than take bad ones
+        - You have COMPLETE FREEDOM to choose trade duration and management, but make sure to avoid sl that hit by market small move means to small trade behave like luck base not analysis based.
+        - Quality over quantity - Better to miss trades than take bad ones and try to take trade those who has potential to win more than loss also get less trades but quality or try to avoid take trade without conformation in market 
         - Target profits based on market potential ($50-500+ per trade)
+        - Try to take less trades but take high chnages of profit 
         - Use FLEXIBLE risk/reward ratios based on MARKET STRUCTURE ONLY
         - Let the MARKET decide your actions, not rigid rules
 
         RISK MANAGEMENT STRATEGY:
-        - Consider partial profit taking in your decisions
-        - Exit early if you see danger ahead
+        - Try to aviod early exit but if Exit early if you see danger ahead
         - Hold longer if momentum continues
         - Switch positions if market structure changes
-        - Use your intelligence, not fixed stop losses
+        - Use your intelligence, not fixed stop losses  try to merge best risk reward with market required sl and tp 
 
         ANALYSIS APPROACH:
         - Study the COMPLETE candle structure (all 6,000 candles)
