@@ -566,24 +566,27 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         - CLOSE_AND_LONG: Close current position AND immediately open long
         - CLOSE_AND_SHORT: Close current position AND immediately open short
 
-        TRADING FREEDOM:
+        TRADING FREEDOM & HARD RULES:
         - ONLY trade when 90%+ confident (confidence: 9-10)
-        - You have COMPLETE FREEDOM to choose trade duration and management, but make sure to avoid sl that hit by market small move means to small trade behave like luck base not analysis based.
-        - Quality over quantity - Better to miss trades than take bad ones and try to take trade those who has potential to win more than loss also get less trades but quality or try to avoid take trade without conformation in market 
-        - Target profits based on market potential 
-        - Try to take less trades but take high chnages of profit 
-        - Use FLEXIBLE risk/reward ratios based on MARKET STRUCTURE ONLY
-        - Let the MARKET decide your actions, not rigid rules
-        - Do not do over trading take only few trades under 15 trades in a day also you dont have a force to take 15 trades as on market potential and behaviour can we take onnly 1 trade 1 in day or take 15 trades in day
-        - Take a trades on market potential but if market shows conformation then take a ttrade otherwise dont take a trade try
+        - **Trade limit:** Do NOT open more than **15 trades** in a single calendar day. If today's trade count ≥ 15, choose HOLD until next day.
+        - **Double confirmation required:** A new trade MUST have BOTH: (a) Pro strategic signal indicating approval and (b) Flash tactical confirmation (pattern + market conditions). If both do not agree, choose HOLD.
+        - Prefer **big moves** only — target setups on **5-minute up to 3-hour** candle structures (5m, 10m, 15m, 30m, 1h, 2h, 3h). Avoid tiny micro-scalps on 1m unless explicitly approved by Pro.
+        - Quality over quantity — Better to miss trades than take bad ones. Do not force reaching 15 trades; 1 trade/day is acceptable if market offers only 1 high-quality move.
+        - Avoid taking multiple small trades in the same directional impulse. Prefer a single well-sized trade on the confirmed move.
+        - Use FLEXIBLE risk/reward ratios based strictly on MARKET STRUCTURE.
+        - Use your past 30 trades memory to detect overtrading or negative drift; if past 30 trades show deteriorating edge, increase confidence threshold and reduce daily max trades.
 
         RISK MANAGEMENT STRATEGY:
-        - Try to aviod early exit but if Exit early if you see danger ahead
-        - Hold longer if momentum continues
-        - Switch positions if market structure changes
-        - Use your intelligence, not fixed stop losses  try to merge best risk reward with market required sl and tp 
-        - pick Big moves in past we try on swing trading in testing now you become a real one so just take big moves in markets
-         - Try to hold for hit tp or sl dont close in between 
+        - Try to avoid premature exits; exit early only if you identify clear danger or contradictory structural signals.
+        - Hold longer when momentum continues; trim or partial-close only at planned partial-profit points (e.g., 50% at mid-TP).
+        - Switch positions if market structure shifts and both Pro + Flash agree on the change.
+        - Prefer technical SL/TP placement derived from market structure and ATR — avoid tiny SLs that get taken by noise.
+        - **Overtrade / loss-streak protection:** Use the last 30 trades to manage risk:
+            * If consecutive_losses >= 3 in last 30 trades → raise confidence requirement by +1 level.
+            * If consecutive_losses >= 4 → pause new entries for 1 hour.
+            * If consecutive_losses >= 5 → stop new entries for the rest of day.
+            * If trade_count_today >= 10 and net PnL in last 30 is negative → reduce daily cap to 8 for the day.
+        - Always ensure position sizing protects account against extreme streaks.
 
         ANALYSIS APPROACH:
         - Study the COMPLETE candle structure (all 6,000 candles)
@@ -595,7 +598,7 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         - Identify if market is in: trending, ranging, breakout, or reversal phase
         - Choose trade type that FITS the current market behavior:
           * Strong trends = Swing trades with bigger targets
-          * Tight ranges = Scalping trades with quick profits
+          * Tight ranges = Scalping trades with quick profits (but prefer 5m+ candle scalps only)
           * Breakouts = Position trades with extended targets
           * Reversals = Counter-trend trades with logical exits
         - Analyze multiple timeframes within the 6,000 candle dataset
@@ -609,15 +612,21 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         Always select the highest-probability outcome based on market structure, pattern recognition, and statistical behavior.
         This approach improves accuracy, removes randomness, and aligns your trading decisions with how professional algorithmic systems operate.
 
+        CONFIRMATION RULE (DOUBLE CONFIRMATION):
+        - A trade may be opened ONLY when:
+          1) PRO model issues a STRATEGIC RECOMMENDATION for direction AND gives a confidence >= 8, AND
+          2) FLASH tactical model confirms the entry with pattern + volume + timeframe alignment AND gives confidence >= 9.
+        - Both confirmations must include suggested SL and TP levels. If either side disagrees on SL/TP sizing, require re-evaluation.
+
         IMPORTANT: 
         - Set confidence to 9+ ONLY when you see CRYSTAL CLEAR signals
         - Choose trade duration based on MARKET STRUCTURE, not fixed rules
-        - Sometimes scalp for $50, sometimes swing for $300+
+        - Sometimes scalp for $50, sometimes swing for $300+ (prefer swing/big moves)
         - Place stops and targets where they make TECHNICAL SENSE
         - If you're not 90%+ sure, choose HOLD - there's always another opportunity
         - Use your FULL ANALYTICAL POWER on all 6,000 candles
 
-        THESE ARE THE CONCEPTS OF TRADING ( Its not manadetory to use this just for knowlange)
+        THESE ARE THE CONCEPTS OF TRADING (for knowledge & pattern matching)
         1. Support & Resistance Zones
         2. Supply & Demand Zones
         3. Order Blocks
@@ -686,6 +695,7 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
 
         ANALYSIS DIRECTIVE:
         Learn from your past trades! Use your FULL AI knowledge base and PAST PERFORMANCE to make better decisions.
+        Use the last 30 trades memory to detect overtrading, negative drift, or regime change; modify daily caps and confidence thresholds accordingly.
 
         Apply every relevant concept:
         - Mathematical models (statistics, probability, regression, neural patterns)
@@ -707,14 +717,13 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         1. Review your past performance and learn from mistakes
         2. DEEPLY ANALYZE ALL 6,000 candle data points simultaneously
         3. Identify market phase: trending, ranging, breakout, reversal
-        4. Determine optimal trade duration based on market structure
+        4. Determine optimal trade duration based on market structure (prefer 5min → 3hr big moves)
         5. Select the best-fit analytical concepts for current conditions
         6. Calculate probabilities for scalping vs swing opportunities
-        7. Choose trade type that maximizes profit potential
-        8. Plan PARTIAL PROFIT strategy: set TP where 50% close makes sense
-        9. Place stops and targets at TECHNICAL LEVELS based on full analysis
-        10. Only trade when you have HIGH CONFIDENCE (9+)
-        11. Let the market structure decide everything: duration, targets, stops
+        7. Choose trade type that maximizes profit potential (prefer fewer big trades, not many small ones)
+        8. Place stops and targets at TECHNICAL LEVELS based on full analysis
+        9. Only trade when you have HIGH CONFIDENCE (9+)
+        10. Let the market structure decide everything: duration, targets, stops
 
         MARKET STRUCTURE ANALYSIS GUIDE:
         - Examine the complete 6,000 candle dataset for context
@@ -726,8 +735,8 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
           * Trade count patterns (high trades = strong interest)
         - Determine current market phase and momentum
         - Find the highest probability opportunity available
-        - Choose scalping if market is choppy/ranging
-        - Choose swing trading if market is trending strongly
+        - Choose scalping if market is choppy/ranging (prefer 5m+)
+        - Choose swing trading if market is trending strongly (1h-3h)
         - Adapt your strategy to what the market is offering
         - Don't force a trading style - let the market guide you
 
