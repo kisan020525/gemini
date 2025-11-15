@@ -570,10 +570,12 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         - ONLY trade when 90%+ confident (confidence: 9-10)
         - You have COMPLETE FREEDOM to choose trade duration and management, but make sure to avoid sl that hit by market small move means to small trade behave like luck base not analysis based.
         - Quality over quantity - Better to miss trades than take bad ones and try to take trade those who has potential to win more than loss also get less trades but quality or try to avoid take trade without conformation in market 
-        - Target profits based on market potential ($50-500+ per trade)
+        - Target profits based on market potential 
         - Try to take less trades but take high chnages of profit 
         - Use FLEXIBLE risk/reward ratios based on MARKET STRUCTURE ONLY
         - Let the MARKET decide your actions, not rigid rules
+        - Do not do over trading take only few trades under 15 trades in a day also you dont have a force to take 15 trades as on market potential and behaviour can we take onnly 1 trade 1 in day or take 15 trades in day
+        - Take a trades on market potential but if market shows conformation then take a ttrade otherwise dont take a trade try
 
         RISK MANAGEMENT STRATEGY:
         - Try to aviod early exit but if Exit early if you see danger ahead
@@ -613,7 +615,59 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         - If you're not 90%+ sure, choose HOLD - there's always another opportunity
         - Use your FULL ANALYTICAL POWER on all 6,000 candles
 
-        Current Bitcoin price: ${current_price:.0f}
+        THESE ARE THE CONCEPTS OF TRADING ( Its not manadetory to use this just for knowlange)
+        1. Support & Resistance Zones
+        2. Supply & Demand Zones
+        3. Order Blocks
+        4. Break of Structure (BOS)
+        5. Market Structure Shift (MSS)
+        6. Fair Value Gaps (FVG)
+        7. Imbalance Fill Zones
+        8. Liquidity Pools
+        9. Stop Hunt / Liquidity Grab
+        10. Double Top / Double Bottom Reversal
+        11. Rejection Candles (Pin Bars)
+        12. Engulfing Patterns
+        13. Breaker Blocks
+        14. Trendline Breakout & Retest
+        15. Range Trading (Accumulation/Distribution)
+        16. Retest Entries after Breakouts
+        17. Swing High / Swing Low Structure
+        18. Killer Zones (Key Time + Key Level Confluence)
+        19. Market Sweep + Reversal Pattern
+        20. Pullback Continuation Pattern
+        21. Uptrend / Downtrend identification
+        22. Internal vs External Market Structure
+        23. Premium (Sell Zone) & Discount (Buy Zone)
+        24. Smart Money Concepts (SMC)
+        25. Institutional Candle Identification
+        26. Confluence Trading (2–3 confirmations)
+        27. Market Reversal Zones (MRZ)
+        28. Trend Continuation Zones (TCZ)
+        29. Entry Trigger Candles
+        30. Multi-timeframe Analysis (HTF + LTF)
+        31. 200 EMA Trend Filter
+        32. 50 EMA Pullback Strategy
+        33. RSI Divergence (Regular + Hidden)
+        34. MACD Cross Momentum Confirmation
+        35. Stochastic Overbought/Oversold
+        36. Volume Profile High/Low Nodes
+        37. VWAP Reversion Strategy
+        38. Bollinger Band Breakout/Mean Reversion
+        39. ATR Volatility-Based Stop Loss
+        40. Ichimoku Cloud Trend Confirmation
+        41. Liquidity Sweep + FVG Entry
+        42. Order Block Retest + BOS Confirmation
+        43. Demand Zone Tap + Bullish Engulfing
+        44. Supply Zone Tap + Bearish Reversal Candle
+        45. Trendline Liquidity Grab + Reversal
+        46. Double Top with Equal Highs (Liquidity) + Breakdown
+        47. Fibonacci 61.8% Retracement Reversal
+        48. Breakout Retest at HTF S/R
+        49. New York Session Reversal Pattern
+        50. London Open Breakout Strategy
+
+        Current Bitcoin price: {current_price:.0f}
 
         CURRENT POSITION STATUS:
         {get_current_position_for_gemini()}
