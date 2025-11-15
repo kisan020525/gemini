@@ -582,6 +582,8 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         - Hold longer if momentum continues
         - Switch positions if market structure changes
         - Use your intelligence, not fixed stop losses  try to merge best risk reward with market required sl and tp 
+        - pick Big moves in past we try on swing trading in testing now you become a real one so just take big moves in markets
+         - Try to hold for hit tp or sl dont close in between 
 
         ANALYSIS APPROACH:
         - Study the COMPLETE candle structure (all 6,000 candles)
