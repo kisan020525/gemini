@@ -96,10 +96,9 @@ async def validate_pro_keys():
     print(f"📊 Working Pro Keys: {len(working_keys)}/15")
     return working_keys
 
-# Initialize rate limiter
+# Initialize rate limiter and working keys
 pro_rate_limiter = GeminiRateLimiter()
 working_pro_keys = []
-blocked_pro_keys = set()  # Track keys that hit rate limits
 
 # Configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL")  # For candles (read-only)
@@ -378,6 +377,38 @@ async def handle_pro_analysis_completion(task_result):
         print(f"❌ Background Pro analysis error: {e}")
         # Still wait 60s even on error to prevent rapid retries
         await asyncio.sleep(60)
+
+async def validate_pro_keys():
+    """Test all Pro API keys to find working ones"""
+    working_keys = []
+    
+    for i, api_key in enumerate(GEMINI_API_KEYS):
+        if not api_key:
+            continue
+            
+        try:
+            print(f"🔍 Testing Pro Key #{i+1}...")
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-2.5-pro')
+            
+            response = model.generate_content("Say 'OK'")
+            if response.text.strip():
+                working_keys.append((i+1, api_key))
+                print(f"✅ Pro Key #{i+1}: Working")
+            else:
+                print(f"❌ Pro Key #{i+1}: Empty response")
+                
+        except Exception as e:
+            if "429" in str(e):
+                working_keys.append((i+1, api_key))  # Rate limited but working
+                print(f"⚠️ Pro Key #{i+1}: Working (rate limited)")
+            else:
+                print(f"❌ Pro Key #{i+1}: {str(e)[:50]}...")
+                
+        await asyncio.sleep(2)  # Small delay between tests
+    
+    print(f"📊 Working Pro Keys: {len(working_keys)}/15")
+    return working_keys
 
 async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry_count: int = 0) -> Dict:
     """Get strategic analysis from Gemini 2.5 Pro with dynamic key filtering"""
@@ -1578,6 +1609,12 @@ async def main():
     # Validate Pro keys on startup
     print("🔍 Validating Pro API keys...")
     working_pro_keys = await validate_pro_keys()
+    
+    if len(working_pro_keys) == 0:
+        print("❌ No working Pro keys found - Flash-only mode")
+    else:
+        total_daily_calls = len(working_pro_keys) * 50
+        print(f"✅ {len(working_pro_keys)} working Pro keys = {total_daily_calls} daily calls available")
     
     # Sync position from database on startup
     await sync_position_from_database()
