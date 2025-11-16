@@ -412,7 +412,7 @@ async def validate_pro_keys():
 
 async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry_count: int = 0) -> Dict:
     """Get strategic analysis from Gemini 2.5 Pro with dynamic key filtering"""
-    global pro_analysis_memory, last_pro_analysis, working_pro_keys, blocked_pro_keys
+    global pro_analysis_memory, last_pro_analysis, working_pro_keys
     
     # Prevent infinite retries - max 3 attempts
     if retry_count >= 3:
