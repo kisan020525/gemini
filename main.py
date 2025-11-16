@@ -596,7 +596,7 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         TRADING FREEDOM & HARD RULES:
         - ONLY trade when 90%+ confident (confidence: 9-10)
         - **Trade limit:** Do NOT open more than **15 trades** in a single calendar day. If today's trade count ≥ 15, choose HOLD until next day.
-        - **MINIMUM 30 MINUTES between trades** - No rapid fire trading!
+        - **MINIMUM 30 MINUTES between trades** - UNLESS confidence is 10/10 for very strong moves
         - **Focus on BIG MOVES only** - Target $100+ profit per trade minimum
         - Wait for MAJOR market shifts using the 50 BIG MOVE CONCEPTS below
         - Better to miss trades than take small, mediocre setups
@@ -1050,12 +1050,16 @@ async def open_new_position(signal: Dict, current_price: float, direction: str) 
     """Execute paper trade - STRICTLY ONE AT A TIME"""
     global current_position, demo_balance, total_trades, last_trade_time
     
-    # Check 30-minute rule
+    # Check 30-minute rule (but allow VERY strong signals)
     if last_trade_time:
         time_since_last = (datetime.now() - last_trade_time).total_seconds() / 60
         if time_since_last < 30:
-            print(f"⏳ Must wait {30 - time_since_last:.1f} more minutes before next trade")
-            return None
+            # Allow trade if confidence is MAXIMUM (10/10) for very strong moves
+            if signal['confidence'] < 10:
+                print(f"⏳ Must wait {30 - time_since_last:.1f} more minutes (or confidence 10/10 for strong moves)")
+                return None
+            else:
+                print(f"🚀 STRONG MOVE DETECTED: Confidence 10/10 - bypassing 30min rule")
     
     # Only trade with VERY HIGH confidence (9+ out of 10 = 90%+)
     if signal['signal'] == 'HOLD' or signal['confidence'] < 9:
