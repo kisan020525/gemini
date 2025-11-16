@@ -687,6 +687,8 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
 
         STRATEGIC CONTEXT FROM PRO MODEL:
         {get_pro_analysis_for_flash()}
+        
+        IMPORTANT: If Pro model is unavailable (confidence 0) or daily limit reached, you can trade independently with Flash-only analysis. Don't wait for Pro confirmation when Pro is rate-limited.
 
         {await get_past_trades_for_gemini()}
 
