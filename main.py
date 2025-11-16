@@ -484,11 +484,8 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
             
         except asyncio.TimeoutError:
             print(f"⏰ Pro Request timeout (30s) - Key #{key_index}")
-            # Block this key and wait before trying next one
-            blocked_pro_keys.add(key_index)
-            print("⏳ Waiting 60s before trying next Pro key (rate limit compliance)...")
-            await asyncio.sleep(60)  # Wait 60s before trying next key
-            return await get_gemini_pro_analysis(candles_data, current_price, retry_count + 1)
+            print(f"⏳ Pro quota exceeded - using Flash only")
+            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro timeout"}
         except Exception as api_error:
             print(f"❌ Pro API error: {api_error}")
             raise api_error
@@ -850,7 +847,7 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         if "429" in error_msg or "quota" in error_msg.lower() or "rate" in error_msg.lower():
             print(f"🚫 Rate limit on API key #{current_api_key_index + 1}")
             # Mark this key as exhausted for today
-            api_key_daily_count[current_api_key_index] = 250
+            api_key_daily_count_flash[current_api_key_index] = 250
         else:
             print(f"❌ Gemini error: {e}")
         
