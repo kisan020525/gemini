@@ -425,15 +425,13 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
             print("🚫 Pro daily limit reached - using Flash only")
             return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro daily limit reached"}
         
-        # Filter out blocked keys from working keys
-        available_keys = [(idx, key) for idx, key in working_pro_keys if idx not in blocked_pro_keys]
-        
-        if not available_keys:
-            print("🚫 No available Pro keys (all blocked) - using Flash only")
-            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "All Pro keys blocked"}
-        
-        # Use next available key (rotate through them)
-        key_index, api_key = available_keys[pro_rate_limiter.daily_count % len(available_keys)]
+        # Use working Pro API key
+        if not working_pro_keys:
+            print("🚫 No working Pro API keys available")
+            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "No working Pro keys"}
+            
+        # Use next working key (rotate through them)
+        key_index, api_key = working_pro_keys[pro_rate_limiter.daily_count % len(working_pro_keys)]
         
         prompt = f"""
         You are GEMINI 2.5 PRO - Strategic Master AI for Bitcoin Trading.
@@ -516,17 +514,8 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
     except Exception as e:
         error_msg = str(e)
         if "429" in error_msg or "quota" in error_msg.lower():
-            # Block this key and wait before trying next one
-            blocked_pro_keys.add(key_index)
-            print(f"🚫 Pro Key #{key_index} rate limited - blocked from Pro model")
-            print(f"📊 Available Pro keys: {len(available_keys)-1}/{len(working_pro_keys)}")
-            
-            # Wait 60s before trying next key to respect rate limits
-            print("⏳ Waiting 60s before trying next Pro key (rate limit compliance)...")
-            await asyncio.sleep(60)
-            
-            # Try next available key
-            return await get_gemini_pro_analysis(candles_data, current_price, retry_count + 1)
+            print(f"⏳ Pro quota exceeded - using Flash only")
+            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro quota exceeded"}
         
         print(f"❌ Gemini Pro error: {e}")
         return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": f"Pro error: {e}"}
