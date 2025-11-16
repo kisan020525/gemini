@@ -1640,7 +1640,7 @@ async def main():
             
             # Only analyze when new candle arrives
             if current_candle_time != last_candle_time:
-                print(f"🕐 New candle detected: {current_candle_time[-8:-3]} | Price: ${current_price:.0f}")
+                print(f"🕐 New candle detected: {datetime.now().strftime('%H:%M:%S')} | Price: ${current_price:.0f}")
                 
                 # Gemini now controls all position management - no automatic TP/SL
                 
