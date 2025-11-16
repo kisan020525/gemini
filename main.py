@@ -174,6 +174,7 @@ demo_balance = 10000.0  # Starting capital - RESET
 total_trades = 0        # Reset trade counter to 0 - START FROM TRADE #1
 analysis_memory = []    # Clear analysis memory for fresh start
 winning_trades = 0      # Reset win counter
+last_trade_time = None  # Track last trade time for 30min rule
 
 class Trade:
     def __init__(self, entry_price: float, stop_loss: float, take_profit: float, 
@@ -595,6 +596,7 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         TRADING FREEDOM & HARD RULES:
         - ONLY trade when 90%+ confident (confidence: 9-10)
         - **Trade limit:** Do NOT open more than **15 trades** in a single calendar day. If today's trade count ≥ 15, choose HOLD until next day.
+        - **MINIMUM 30 MINUTES between trades** - No rapid fire trading!
         - **Focus on BIG MOVES only** - Target $100+ profit per trade minimum
         - Wait for MAJOR market shifts using the 50 BIG MOVE CONCEPTS below
         - Better to miss trades than take small, mediocre setups
@@ -1022,85 +1024,6 @@ async def execute_gemini_action(signal: Dict, current_price: float) -> Optional[
     
     return None
 
-async def open_new_position(signal: Dict, current_price: float, direction: str) -> Optional[Trade]:
-    """Execute paper trade - STRICTLY ONE AT A TIME"""
-    global current_position, demo_balance, total_trades
-    
-    # Only trade with VERY HIGH confidence (9+ out of 10 = 90%+)
-    if signal['signal'] == 'HOLD' or signal['confidence'] < 9:
-        if current_position and current_position.status == 'open':
-            print(f"⏸️ Holding current position: {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
-        else:
-            print(f"⏳ WAITING for 90%+ confidence trade (Current: {signal['confidence']}/10)")
-        return None
-    
-    # WAIT FOR CURRENT TRADE TO CLOSE - Only take new trade when 90%+ sure
-    if current_position and current_position.status == 'open':
-        print(f"🔒 WAITING: Position open - {current_position.direction.upper()} @ ${current_position.entry_price:.0f}")
-        print(f"⏳ Will take new trade when current closes AND confidence ≥ 90%")
-        return None
-    
-    # Validate trade parameters with LIVE CAPITAL
-    risk_amount = demo_balance * RISK_PER_TRADE  # Use current balance, not fixed amount
-    entry = signal.get('entry', current_price)
-    stop_loss = signal.get('stop_loss', current_price * 0.98)
-    take_profit = signal.get('take_profit', current_price * 1.04)
-    
-    # Fix direction logic for all signal types
-    signal_type = signal.get('signal', 'HOLD')
-    if signal_type in ['BUY', 'OPEN_LONG', 'CLOSE_AND_LONG']:
-        direction = 'long'
-    elif signal_type in ['SELL', 'OPEN_SHORT', 'CLOSE_AND_SHORT']:
-        direction = 'short'
-    else:
-        direction = direction  # Use the passed direction parameter
-    
-    print(f"🔍 DEBUG: Signal={signal_type} | Direction={direction} | Entry=${entry} | SL=${stop_loss} | TP=${take_profit}")
-    
-    # Validate SL/TP logic
-    if direction == 'long' and stop_loss >= entry:
-        print(f"⚠️ Invalid LONG setup: SL ${stop_loss} should be < entry ${entry}")
-        return None
-    if direction == 'short' and stop_loss <= entry:
-        print(f"⚠️ Invalid SHORT setup: SL ${stop_loss} should be > entry ${entry}")
-        return None
-    
-    position_size = calculate_position_size(entry, stop_loss, risk_amount)
-    
-    if position_size <= 0:
-        print(f"⚠️ Invalid position size: {position_size}")
-        return None
-    
-    # Log trade setup with current capital
-    print(f"📋 Trade Setup: {direction.upper()} ${entry} | SL: ${stop_loss} | TP: ${take_profit} | Size: {position_size:.4f} BTC")
-    print(f"💰 Current Capital: ${demo_balance:.2f} | Risk: ${risk_amount:.2f}")
-    
-    # Create trade
-    trade = Trade(entry, stop_loss, take_profit, position_size, direction)
-    current_position = trade
-    total_trades += 1
-    
-    # Save to separate trades database
-    trade_data = {
-        "trade_id": total_trades,
-        "timestamp": trade.entry_time.isoformat(),
-        "created_at": trade.entry_time.isoformat(),  # Add created_at
-        "direction": direction,
-        "entry_price": entry,
-        "stop_loss": stop_loss,
-        "take_profit": take_profit,
-        "position_size": position_size,
-        "risk_amount": risk_amount,
-        "confidence": signal['confidence'],
-        "reasoning": signal['reasoning'],
-        "status": "open",
-        "capital_before": demo_balance,  # Track capital before trade
-        "capital_after": demo_balance,   # Will update when closed
-        "total_pnl": demo_balance - 10000.0,  # Running total P&L
-        "trade_result": "OPEN",  # Easy status indicator
-        "partial_profit_50": 0.0  # Track 50% TP partial profit
-    }
-    
 async def save_trade_to_supabase(trade_data, max_retries=3):
     """Save trade to Supabase with retry logic"""
     for attempt in range(max_retries):
@@ -1125,7 +1048,14 @@ async def save_trade_to_supabase(trade_data, max_retries=3):
 
 async def open_new_position(signal: Dict, current_price: float, direction: str) -> Optional[Trade]:
     """Execute paper trade - STRICTLY ONE AT A TIME"""
-    global current_position, demo_balance, total_trades
+    global current_position, demo_balance, total_trades, last_trade_time
+    
+    # Check 30-minute rule
+    if last_trade_time:
+        time_since_last = (datetime.now() - last_trade_time).total_seconds() / 60
+        if time_since_last < 30:
+            print(f"⏳ Must wait {30 - time_since_last:.1f} more minutes before next trade")
+            return None
     
     # Only trade with VERY HIGH confidence (9+ out of 10 = 90%+)
     if signal['signal'] == 'HOLD' or signal['confidence'] < 9:
@@ -1160,6 +1090,7 @@ async def open_new_position(signal: Dict, current_price: float, direction: str) 
     trade = Trade(entry, stop_loss, take_profit, position_size, direction)
     current_position = trade
     total_trades += 1
+    last_trade_time = datetime.now()  # Update last trade time for 30min rule
     
     # Save to separate trades database
     trade_data = {
