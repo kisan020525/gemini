@@ -456,53 +456,20 @@ async def generate_historical_data(days=17) -> List[Dict]:
 
 async def get_data_for_pro(candles_1min: List[Dict]) -> Dict:
     """
-    Prepare data for Gemini Pro strategic analysis - Enhanced with synthetic data
+    Prepare data for Gemini Pro strategic analysis - REAL DATA ONLY
     """
     try:
-        # If we don't have enough data, generate synthetic historical data
-        if len(candles_1min) < 24000:  # Need 24k for 100+ 4H candles
-            print(f"⚠️ Only {len(candles_1min)} candles available, generating synthetic historical data...")
-            
-            # Generate 17 days of synthetic data (24,480 minutes)
-            synthetic_candles = []
-            start_time = datetime.now() - timedelta(days=17)
-            base_price = 92000
-            
-            for i in range(24480):
-                timestamp = start_time + timedelta(minutes=i)
-                price = base_price + (i % 1000) - 500 + (i % 100) * 2
-                
-                candle = {
-                    'timestamp': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-                    'open': price,
-                    'high': price + 50,
-                    'low': price - 50,
-                    'close': price + (i % 20) - 10,
-                    'volume': 100 + (i % 50)
-                }
-                synthetic_candles.append(candle)
-            
-            # Merge synthetic + real data
-            if len(candles_1min) > 0:
-                # Replace last part of synthetic with real data
-                combined_data = synthetic_candles[:-len(candles_1min)] + candles_1min
-            else:
-                combined_data = synthetic_candles
-                
-            print(f"✅ Using {len(combined_data)} total candles ({len(synthetic_candles)} synthetic + {len(candles_1min)} real)")
-            candles_to_use = combined_data
-        else:
-            candles_to_use = candles_1min
+        print(f"📊 Using {len(candles_1min)} REAL candles (no synthetic data)")
         
         # Get current price
-        current_price = float(candles_to_use[-1]['close']) if candles_to_use else 0
+        current_price = float(candles_1min[-1]['close']) if candles_1min else 0
         
-        # Aggregate to multiple timeframes
-        candles_4h = await aggregate_candles(candles_to_use, '4h')
-        candles_1h = await aggregate_candles(candles_to_use, '1h') 
-        candles_15m = await aggregate_candles(candles_to_use, '15m', limit=96)
+        # Aggregate REAL data only
+        candles_4h = await aggregate_candles(candles_1min, '4h')
+        candles_1h = await aggregate_candles(candles_1min, '1h') 
+        candles_15m = await aggregate_candles(candles_1min, '15m', limit=96)
         
-        print(f"📊 Pro Data: {len(candles_4h)} 4H candles, {len(candles_1h)} 1H candles, {len(candles_15m)} 15m candles")
+        print(f"📊 Pro Data (REAL): {len(candles_4h)} 4H candles, {len(candles_1h)} 1H candles, {len(candles_15m)} 15m candles")
         
         return {
             '4h': candles_4h,
