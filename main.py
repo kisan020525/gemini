@@ -451,8 +451,51 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
         - Use the 50 BIG MOVE CONCEPTS to identify major opportunities
         - Wait for MAJOR market shifts, not small fluctuations
         
-        50 BIG MOVE CONCEPTS (Identify these major opportunities):
-        1. Volume Breakouts (3x+ average) 2. Psychological Levels ($100k, $95k) 3. Major S/R Breaks 4. Trend Line Breaks 5. MA Breaks (50, 200) 6. Bollinger Squeezes 7. RSI Divergences 8. MACD Crossovers 9. Fibonacci Levels 10. Gap Fills 11. Liquidity Sweeps 12. Stop Hunts 13. Order Blocks 14. Supply/Demand Zones 15. Structure Breaks 16. Momentum Shifts 17. Reversal Patterns 18. Continuation Patterns 19. Candlestick Patterns 20. Volume Profile Breaks 21. VWAP Deviations 22. Options Levels 23. News Moves 24. Correlation Breaks 25. Seasonal Patterns 26. Time Reversals 27. Accumulation/Distribution 28. Wyckoff Patterns 29. Elliott Waves 30. Harmonic Patterns 31. Pivot Breaks 32. Ichimoku Breaks 33. Stochastic Extremes 34. Williams %R 35. CCI Divergences 36. ADX Strength 37. Parabolic SAR 38. Keltner Breaks 39. Donchian Breaks 40. Price Action 41. Sentiment Extremes 42. Fear/Greed Index 43. Funding Rates 44. Open Interest 45. Whale Movements 46. Exchange Flows 47. Derivatives Data 48. Cross-Market Correlations 49. Macro Events 50. Confluence Zones
+        TRADING CONCEPT CHECKLIST - Check which concepts apply to current market:
+        
+        **PRICE ACTION CONCEPTS:**
+        ✓ Psychological Level Break ($95k, $100k zones)
+        ✓ Major Support/Resistance Break 
+        ✓ Market Structure Break (Higher High/Lower Low)
+        ✓ Trend Line Break (Daily/Weekly)
+        ✓ Supply/Demand Zone Test
+        
+        **VOLUME CONCEPTS:**
+        ✓ Volume Breakout (3x+ average volume)
+        ✓ Volume Divergence (Price up, Volume down)
+        ✓ Volume Profile POC Break
+        ✓ Accumulation/Distribution Pattern
+        
+        **TECHNICAL INDICATOR CONCEPTS:**
+        ✓ Moving Average Break (50MA, 200MA)
+        ✓ RSI Divergence (Price vs RSI)
+        ✓ MACD Crossover/Divergence
+        ✓ Bollinger Band Squeeze/Expansion
+        ✓ Stochastic Extreme (>80 or <20)
+        
+        **PATTERN CONCEPTS:**
+        ✓ Reversal Pattern (Head & Shoulders, Double Top/Bottom)
+        ✓ Continuation Pattern (Flag, Pennant, Triangle)
+        ✓ Candlestick Pattern (Doji, Hammer, Engulfing)
+        ✓ Wyckoff Pattern (Accumulation/Distribution)
+        
+        **MARKET STRUCTURE CONCEPTS:**
+        ✓ Liquidity Sweep (Stop Hunt)
+        ✓ Order Block Formation
+        ✓ Fair Value Gap
+        ✓ Institutional Level Test
+        
+        **MOMENTUM CONCEPTS:**
+        ✓ Momentum Shift (Bullish to Bearish or vice versa)
+        ✓ Trend Exhaustion Signal
+        ✓ Breakout with Momentum
+        ✓ Confluence Zone (Multiple concepts align)
+        
+        INSTRUCTIONS: 
+        1. Check current market against these concepts
+        2. Identify which 2-3 concepts are CLEARLY present
+        3. Only trade if you see STRONG evidence of major concepts
+        4. Focus on CONFLUENCE (multiple concepts aligning)
         
         Current Bitcoin Price: ${current_price}
         Market Data: {candles_data[-1000:]}
@@ -465,7 +508,8 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
             "stop_loss": price_level,
             "take_profit": price_level,
             "trend_direction": "Overall trend",
-            "reasoning": "Strategic analysis"
+            "concepts_identified": ["List 2-3 specific concepts you see clearly"],
+            "reasoning": "Strategic analysis focusing on identified concepts"
         }}
         """
         
@@ -609,8 +653,40 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
         - Wait for MAJOR market shifts using the 50 BIG MOVE CONCEPTS below
         - Better to miss trades than take small, mediocre setups
         
-        50 BIG MOVE CONCEPTS (Look for these major opportunities):
-        1. Volume Breakouts (3x+ average volume) 2. Psychological Level Breaks ($100k, $95k, etc.) 3. Major Support/Resistance Breaks 4. Trend Line Breaks (daily/weekly) 5. Moving Average Breaks (50, 200 MA) 6. Bollinger Band Squeezes 7. RSI Divergences 8. MACD Crossovers 9. Fibonacci Retracements (61.8%, 78.6%) 10. Gap Fills 11. Liquidity Sweeps 12. Stop Loss Hunts 13. Institutional Order Blocks 14. Supply/Demand Zones 15. Market Structure Breaks 16. Momentum Shifts 17. Reversal Patterns (Head & Shoulders, Double Top/Bottom) 18. Continuation Patterns (Flags, Pennants) 19. Candlestick Patterns (Doji, Hammer, Engulfing) 20. Volume Profile POC Breaks 21. VWAP Deviations 22. Options Expiry Levels 23. News-Driven Moves 24. Correlation Breaks 25. Seasonal Patterns 26. Time-Based Reversals 27. Accumulation/Distribution 28. Wyckoff Patterns 29. Elliott Wave Completions 30. Harmonic Patterns 31. Pivot Point Breaks 32. Ichimoku Cloud Breaks 33. Stochastic Extremes 34. Williams %R Signals 35. CCI Divergences 36. ADX Trend Strength 37. Parabolic SAR Flips 38. Keltner Channel Breaks 39. Donchian Channel Breaks 40. Price Action Patterns 41. Market Sentiment Extremes 42. Fear/Greed Index Levels 43. Funding Rate Extremes 44. Open Interest Changes 45. Whale Movement Alerts 46. Exchange Flow Patterns 47. Derivatives Data Signals 48. Cross-Market Correlations 49. Macro Economic Events 50. Technical Confluence Zones
+        TRADING CONCEPT CHECKLIST - Check which concepts apply RIGHT NOW:
+        
+        **IMMEDIATE PRICE ACTION:**
+        ✓ Psychological Level Test ($95k zone)
+        ✓ Support/Resistance Level Test
+        ✓ Market Structure (Break of Structure)
+        ✓ Recent High/Low Test
+        
+        **VOLUME SIGNALS:**
+        ✓ Volume Spike (Above average)
+        ✓ Volume Divergence 
+        ✓ Buying/Selling Pressure
+        
+        **TECHNICAL SIGNALS:**
+        ✓ Moving Average Position
+        ✓ RSI Level (Overbought/Oversold)
+        ✓ MACD Signal
+        ✓ Bollinger Band Position
+        
+        **PATTERN RECOGNITION:**
+        ✓ Candlestick Pattern (Current candle)
+        ✓ Short-term Pattern Formation
+        ✓ Momentum Pattern
+        
+        **MARKET CONTEXT:**
+        ✓ Trend Direction (1H, 4H)
+        ✓ Volatility Level
+        ✓ Time of Day Factor
+        
+        INSTRUCTIONS:
+        1. Check CURRENT market against these concepts
+        2. Identify 1-2 concepts that are CLEARLY happening NOW
+        3. Only suggest trades with CLEAR concept confirmation
+        4. State which specific concepts you see
         - **Double confirmation required:** A new trade MUST have BOTH: (a) Pro strategic signal indicating approval and (b) Flash tactical confirmation (pattern + market conditions). If both do not agree, choose HOLD.
         - Prefer **big moves** only — target setups on **5-minute up to 3-hour** candle structures (5m, 10m, 15m, 30m, 1h, 2h, 3h). Avoid tiny micro-scalps on 1m unless explicitly approved by Pro.
         - Quality over quantity — Better to miss trades than take bad ones. Do not force reaching 15 trades; 1 trade/day is acceptable if market offers only 1 high-quality move.
@@ -791,13 +867,14 @@ async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Di
             "thinking": "Step-by-step reasoning: 1) Current position analysis... 2) Market analysis... 3) Decision rationale...",
             "position_analysis": "Analysis of current position (if any)",
             "market_analysis": "Current market assessment and key concepts used", 
+            "concepts_identified": ["List 1-2 specific concepts you see clearly RIGHT NOW"],
             "action": "HOLD/CLOSE/OPEN_LONG/OPEN_SHORT/CLOSE_AND_LONG/CLOSE_AND_SHORT",
             "confidence": 1-10,
             "entry": {current_price},
             "stop_loss": price,
             "take_profit": price,
             "risk_reward_ratio": "1:X",
-            "reasoning": "Why this action was chosen and how it optimizes the trading strategy"
+            "reasoning": "Why this action was chosen and which concepts support it"
         }}
 
         LEARN FROM YOUR MISTAKES. ONLY TRADE WITH HIGH CONFIDENCE. AVOID PREMATURE EXITS.
