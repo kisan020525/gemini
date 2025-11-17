@@ -1493,12 +1493,12 @@ RECENT TRADES:
         return "Unable to retrieve past performance."
 
 async def main():
-    """Main trading loop triggered by new candles"""
-    global current_position, demo_balance, total_trades, winning_trades, analysis_counter, working_pro_keys
+    """Main trading loop with Pro + Flash architecture"""
+    global current_position, demo_balance, total_trades, winning_trades, last_pro_analysis, last_pro_call
     
-    print("🤖 Gemini Trading Bot - 6K Candle Analysis")
+    print("🤖 Gemini Trading Bot - Strategic Pro + Tactical Flash")
     print(f"💰 Demo Capital: ${DEMO_CAPITAL}")
-    print("🕐 Triggered by new candle updates")
+    print("🕐 Pro every 1H, Flash every 1min")
     
     valid_keys = [key for key in GEMINI_API_KEYS if key]
     print(f"🔑 API Keys loaded: {len(valid_keys)}/15")
@@ -1507,16 +1507,6 @@ async def main():
         print("❌ No API keys found!")
         return
     
-    # Validate Pro keys on startup
-    print("🔍 Validating Pro API keys...")
-    working_pro_keys = await validate_pro_keys()
-    
-    if len(working_pro_keys) == 0:
-        print("❌ No working Pro keys found - Flash-only mode")
-    else:
-        total_daily_calls = len(working_pro_keys) * 50
-        print(f"✅ {len(working_pro_keys)} working Pro keys = {total_daily_calls} daily calls available")
-    
     # Sync position from database on startup
     await sync_position_from_database()
     
@@ -1524,15 +1514,15 @@ async def main():
     
     while True:
         try:
-            # Get all 25k candles for aggregation
-            candles = await fetch_latest_candles(25000)
-            if not candles:
+            # Get all 25k candles for comprehensive analysis
+            candles_1min = await fetch_latest_candles(25000)
+            if not candles_1min:
                 print("⏳ Waiting for candle data...")
-                await asyncio.sleep(15)  # Check every 15 seconds for scalping
+                await asyncio.sleep(15)
                 continue
             
-            current_candle_time = candles[-1].get('timestamp', '')
-            current_price = float(candles[-1].get('close', 0))
+            current_candle_time = candles_1min[-1].get('timestamp', '')
+            current_price = float(candles_1min[-1].get('close', 0))
             
             if current_price <= 0:
                 await asyncio.sleep(30)
@@ -1540,44 +1530,55 @@ async def main():
             
             # Only analyze when new candle arrives
             if current_candle_time != last_candle_time:
-                print(f"🕐 New candle detected: {datetime.now().strftime('%H:%M:%S')} | Price: ${current_price:.0f}")
+                print(f"🕐 New candle: {datetime.now(IST).strftime('%H:%M:%S')} | Price: ${current_price:.0f}")
                 
-                # Gemini now controls all position management - no automatic TP/SL
+                # Check for automatic position exits (SL/TP)
+                await check_position_exit(current_price)
                 
-                # Skip analysis if position was just closed
-                if not current_position or current_position.status != 'open':
-                    print("📊 No open position - analyzing for new trade")
-                    current_position = None  # Ensure it's properly cleared
+                # Position status
+                if current_position and current_position.status == 'open':
+                    print(f"📊 Open {current_position.direction.upper()} @ ${current_position.entry_price:.0f} | SL: ${current_position.stop_loss:.0f}")
                 else:
-                    print(f"📊 Open {current_position.direction.upper()} @ ${current_position.entry_price:.0f} | SL: ${current_position.stop_loss:.0f} | Current: ${current_price:.0f}")
+                    print("📊 No open position - analyzing for new trade")
                 
-                # Dual AI Analysis System
-                candles_data = format_candles_for_gemini(candles)
+                # PRO ANALYSIS (Every 1 Hour)
+                current_time = datetime.now(IST)
+                should_run_pro = False
                 
-                global analysis_counter
-                analysis_counter += 1
+                if last_pro_call is None:
+                    should_run_pro = True
+                    print("🧠 First Pro analysis")
+                else:
+                    time_since_pro = (current_time - last_pro_call).total_seconds() / 3600  # hours
+                    if time_since_pro >= 1.0:  # 1 hour
+                        should_run_pro = True
+                        print(f"🧠 Pro analysis due (last: {time_since_pro:.1f}h ago)")
                 
-                # Run Pro analysis every 4 minutes (every 4th cycle) - NON-BLOCKING
-                if analysis_counter % 4 == 0 and sum(api_key_daily_count_pro) < 50:
+                if should_run_pro:
                     print("🧠 Running Gemini 2.5 Pro Strategic Analysis...")
-                    # Start Pro analysis in background - don't wait for it
-                    pro_task = asyncio.create_task(get_gemini_pro_analysis(candles_data, current_price))
-                    # Handle completion in background
-                    asyncio.create_task(handle_pro_analysis_completion(pro_task))
+                    pro_data = await get_data_for_pro(candles_1min)
+                    pro_analysis = await get_gemini_pro_analysis(pro_data)
+                    
+                    # Update global Pro state
+                    last_pro_analysis = pro_analysis
+                    last_pro_call = current_time
+                    
+                    print(f"✅ Pro Strategy: {pro_analysis.get('signal')} | Confidence: {pro_analysis.get('confidence')}/10")
+                    print(f"📊 Pro Bias: {pro_analysis.get('bias', 'NEUTRAL')}")
+                    print(f"🎯 Entry Zones: {pro_analysis.get('entry_zones', [])}")
                 
-                # Run Flash analysis every minute
+                # FLASH ANALYSIS (Every 1 Minute)
                 print("⚡ Running Gemini 2.5 Flash Tactical Analysis...")
-                signal = await get_gemini_flash_signal(candles_data, current_price)
+                flash_data = await get_data_for_flash(candles_1min, last_pro_analysis or {})
+                flash_analysis = await get_gemini_flash_signal(flash_data, last_pro_analysis)
                 
-                # Display analysis results
+                # Display Flash results
                 model_used = "Flash + Pro" if last_pro_analysis else "Flash Only"
-                print(f"🧠 {model_used}: {signal.get('signal')} | Confidence: {signal.get('confidence')}/10")
-                print(f"💭 AI Thinking: {signal.get('thinking', 'N/A')[:100]}...")
-                print(f"🤖 AI Analysis: {signal.get('analysis', 'N/A')[:80]}...")
-                print(f"📊 Reasoning: {signal.get('reasoning', 'N/A')[:80]}...")
+                print(f"⚡ {model_used}: {flash_analysis.get('signal')} | Confidence: {flash_analysis.get('confidence')}/10")
+                print(f"📊 Flash Reasoning: {flash_analysis.get('reasoning', 'N/A')[:80]}...")
                 
-                # Execute Gemini's decision (full control)
-                await execute_gemini_action(signal, current_price)
+                # Execute Flash's tactical decision
+                await execute_flash_decision(flash_analysis, current_price)
                 await print_stats()
                 
                 last_candle_time = current_candle_time
@@ -1587,7 +1588,29 @@ async def main():
             
         except Exception as e:
             print(f"❌ Error: {e}")
-            await asyncio.sleep(15)  # Faster retry for scalping
+            await asyncio.sleep(15)
+
+async def execute_flash_decision(flash_analysis: Dict, current_price: float):
+    """Execute Flash's tactical trading decision"""
+    global current_position
+    
+    signal = flash_analysis.get('signal', 'HOLD')
+    confidence = flash_analysis.get('confidence', 0)
+    
+    # Only execute high-confidence signals
+    if confidence < 8:
+        print(f"⏸️ Low confidence ({confidence}/10) - holding")
+        return
+    
+    # Handle different signals
+    if signal == 'LONG' and not current_position:
+        await open_new_position(flash_analysis, current_price, 'long')
+    elif signal == 'SHORT' and not current_position:
+        await open_new_position(flash_analysis, current_price, 'short')
+    elif signal == 'HOLD':
+        print("⏸️ Flash decision: HOLD")
+    else:
+        print(f"⏸️ Flash signal {signal} ignored (position exists or invalid)")
 
 if __name__ == "__main__":
     asyncio.run(main())
