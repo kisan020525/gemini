@@ -353,15 +353,15 @@ async def aggregate_candles(candles_1min: List[Dict], timeframe: str, limit: int
         df.set_index('timestamp', inplace=True)
         df.sort_index(inplace=True)
         
-        # Resample mapping
+        # Resample mapping - using new pandas time aliases
         resample_map = {
-            '5m': '5T',
-            '15m': '15T', 
-            '1h': '1H',
-            '4h': '4H'
+            '5m': '5min',
+            '15m': '15min', 
+            '1h': '1h',
+            '4h': '4h'
         }
         
-        rule = resample_map.get(timeframe, '1H')
+        rule = resample_map.get(timeframe, '1h')
         
         # Aggregate OHLCV
         aggregated = df.resample(rule).agg({
@@ -641,7 +641,16 @@ Respond in JSON:
                         "signal": {"type": "string"},
                         "confidence": {"type": "integer"},
                         "bias": {"type": "string"},
-                        "entry_zones": {"type": "array"},
+                        "entry_zones": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "min": {"type": "number"},
+                                    "max": {"type": "number"}
+                                }
+                            }
+                        },
                         "stop_loss": {"type": "number"},
                         "take_profit": {"type": "number"},
                         "trend_4h": {"type": "string"},
