@@ -456,28 +456,40 @@ async def generate_historical_data(days=17) -> List[Dict]:
 
 async def get_data_for_pro(candles_1min: List[Dict]) -> Dict:
     """
-    Prepare data for Gemini Pro strategic analysis - Enhanced with historical data
-    
-    Returns:
-        Dict with 4H, 1H, 15m candles + current price
+    Prepare data for Gemini Pro strategic analysis - Enhanced with synthetic data
     """
     try:
         # If we don't have enough data, generate synthetic historical data
-        if len(candles_1min) < 24000:  # Need 24k for 100 4H candles
-            print(f"⚠️ Only {len(candles_1min)} candles available, generating historical data...")
+        if len(candles_1min) < 24000:  # Need 24k for 100+ 4H candles
+            print(f"⚠️ Only {len(candles_1min)} candles available, generating synthetic historical data...")
             
-            # Generate 17 days of synthetic data
-            historical_data = await generate_historical_data(17)
+            # Generate 17 days of synthetic data (24,480 minutes)
+            synthetic_candles = []
+            start_time = datetime.now() - timedelta(days=17)
+            base_price = 92000
             
-            # Merge with real recent data (keep last 1000 real candles)
+            for i in range(24480):
+                timestamp = start_time + timedelta(minutes=i)
+                price = base_price + (i % 1000) - 500 + (i % 100) * 2
+                
+                candle = {
+                    'timestamp': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                    'open': price,
+                    'high': price + 50,
+                    'low': price - 50,
+                    'close': price + (i % 20) - 10,
+                    'volume': 100 + (i % 50)
+                }
+                synthetic_candles.append(candle)
+            
+            # Merge synthetic + real data
             if len(candles_1min) > 0:
-                # Replace the last part of synthetic data with real data
-                synthetic_data = historical_data[:-len(candles_1min)]
-                combined_data = synthetic_data + candles_1min
+                # Replace last part of synthetic with real data
+                combined_data = synthetic_candles[:-len(candles_1min)] + candles_1min
             else:
-                combined_data = historical_data
-            
-            print(f"✅ Using {len(combined_data)} total candles ({len(historical_data)} synthetic + {len(candles_1min)} real)")
+                combined_data = synthetic_candles
+                
+            print(f"✅ Using {len(combined_data)} total candles ({len(synthetic_candles)} synthetic + {len(candles_1min)} real)")
             candles_to_use = combined_data
         else:
             candles_to_use = candles_1min
@@ -485,21 +497,12 @@ async def get_data_for_pro(candles_1min: List[Dict]) -> Dict:
         # Get current price
         current_price = float(candles_to_use[-1]['close']) if candles_to_use else 0
         
-        print(f"🔍 DEBUG: Input 1min candles: {len(candles_to_use)}")
-        if candles_to_use:
-            print(f"🔍 DEBUG: First candle: {candles_to_use[0]['timestamp']}")
-            print(f"🔍 DEBUG: Last candle: {candles_to_use[-1]['timestamp']}")
-        
-        # Aggregate to multiple timeframes from enhanced data
-        candles_4h = await aggregate_candles(candles_to_use, '4h')  # Get ALL 4H candles
-        candles_1h = await aggregate_candles(candles_to_use, '1h')  # Get ALL 1H candles
-        candles_15m = await aggregate_candles(candles_to_use, '15m', limit=96)  # Keep 15m limit
+        # Aggregate to multiple timeframes
+        candles_4h = await aggregate_candles(candles_to_use, '4h')
+        candles_1h = await aggregate_candles(candles_to_use, '1h') 
+        candles_15m = await aggregate_candles(candles_to_use, '15m', limit=96)
         
         print(f"📊 Pro Data: {len(candles_4h)} 4H candles, {len(candles_1h)} 1H candles, {len(candles_15m)} 15m candles")
-        
-        if candles_4h:
-            print(f"🔍 DEBUG: First 4H candle: {candles_4h[0]['timestamp']}")
-            print(f"🔍 DEBUG: Last 4H candle: {candles_4h[-1]['timestamp']}")
         
         return {
             '4h': candles_4h,
