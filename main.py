@@ -1498,9 +1498,10 @@ async def main():
     """Main trading loop with Pro + Flash architecture - v2.1"""
     global current_position, demo_balance, total_trades, winning_trades, last_pro_analysis, last_pro_call
     
-    print("🤖 Gemini Trading Bot - Strategic Pro + Tactical Flash")
+    print("🤖 Gemini Trading Bot - Strategic Pro + Tactical Flash v2.1")
     print(f"💰 Demo Capital: ${DEMO_CAPITAL}")
     print("🕐 Pro every 1H, Flash every 1min")
+    print("⚡ Flash timeout: 30s (updated)")  # Force rebuild marker
     
     valid_keys = [key for key in GEMINI_API_KEYS if key]
     print(f"🔑 API Keys loaded: {len(valid_keys)}/15")
