@@ -1495,7 +1495,7 @@ RECENT TRADES:
         return "Unable to retrieve past performance."
 
 async def main():
-    """Main trading loop with Pro + Flash architecture"""
+    """Main trading loop with Pro + Flash architecture - v2.1"""
     global current_position, demo_balance, total_trades, winning_trades, last_pro_analysis, last_pro_call
     
     print("🤖 Gemini Trading Bot - Strategic Pro + Tactical Flash")
@@ -1565,7 +1565,7 @@ async def main():
                     last_pro_analysis = pro_analysis
                     last_pro_call = current_time
                     
-                    print(f"✅ Pro Strategy: {pro_analysis.get('signal')} | Confidence: {pro_analysis.get('confidence')}/10")
+                    print(f"✅ Pro Strategy: {pro_analysis.get('signal')} | Confidence: {pro_analysis.get('confidence', 0)}/10")
                     print(f"📊 Pro Bias: {pro_analysis.get('bias', 'NEUTRAL')}")
                     print(f"🎯 Entry Zones: {pro_analysis.get('entry_zones', [])}")
                 
@@ -1576,7 +1576,7 @@ async def main():
                 
                 # Display Flash results
                 model_used = "Flash + Pro" if last_pro_analysis else "Flash Only"
-                print(f"⚡ {model_used}: {flash_analysis.get('signal')} | Confidence: {flash_analysis.get('confidence')}/10")
+                print(f"⚡ {model_used}: {flash_analysis.get('signal')} | Confidence: {flash_analysis.get('confidence', 0)}/10")
                 print(f"📊 Flash Reasoning: {flash_analysis.get('reasoning', 'N/A')[:80]}...")
                 
                 # Execute Flash's tactical decision
