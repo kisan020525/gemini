@@ -344,11 +344,25 @@ async def fetch_latest_candles(limit: int = 25000) -> List[Dict]:
         # Reverse to get chronological order (oldest first)
         candles = list(reversed(candles))
         
-        print(f"🔍 DEBUG: Actually using {len(candles)} candles for analysis")
-        if candles:
-            print(f"🔍 DEBUG: Date range: {candles[0]['timestamp']} to {candles[-1]['timestamp']}")
+        # Normalize timestamp formats
+        normalized_candles = []
+        for candle in candles:
+            # Convert ISO8601 to simple format if needed
+            timestamp = candle['timestamp']
+            if 'T' in timestamp and '+' in timestamp:
+                # Convert "2025-11-17T09:10:00+00:00" to "2025-11-17 09:10:00"
+                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                timestamp = dt.strftime('%Y-%m-%d %H:%M:%S')
+            
+            normalized_candle = candle.copy()
+            normalized_candle['timestamp'] = timestamp
+            normalized_candles.append(normalized_candle)
         
-        return candles
+        print(f"🔍 DEBUG: Actually using {len(normalized_candles)} candles for analysis")
+        if normalized_candles:
+            print(f"🔍 DEBUG: Date range: {normalized_candles[0]['timestamp']} to {normalized_candles[-1]['timestamp']}")
+        
+        return normalized_candles
         
     except Exception as e:
         print(f"❌ Error fetching candles: {e}")
@@ -370,9 +384,9 @@ async def aggregate_candles(candles_1min: List[Dict], timeframe: str, limit: int
         return []
     
     try:
-        # Convert to DataFrame
+        # Convert to DataFrame with mixed timestamp format handling
         df = pd.DataFrame(candles_1min)
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], format='mixed')  # Handle mixed formats
         df.set_index('timestamp', inplace=True)
         df.sort_index(inplace=True)
         
