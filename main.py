@@ -731,39 +731,32 @@ STRATEGIC GUIDANCE FROM PRO:
 """
         
         prompt = f"""
-You are GEMINI 2.5 FLASH - Tactical Execution AI.
+FLASH - Tactical Bitcoin Trading AI
 
-YOUR ROLE: Execute precise tactical entries based on Pro's strategic guidance.
-
-CURRENT MARKET DATA:
-Price: ${current_price:.0f}
+MARKET: ${current_price:.0f}
 
 {pro_context}
 
-1H CANDLES (Last 12 - Context):
-{formatted_1h}
+RECENT DATA:
+1H: {len(candles_1h)} candles
+15m: {len(candles_15m)} candles  
+1m: {len(candles_1m)} candles
 
-15MIN CANDLES (Last 24 - Setup):
-{formatted_15m}
+TASK: Analyze current market for tactical entry opportunity.
 
-1MIN CANDLES (Last 60 - Entry Timing):
-{formatted_1m}
+RULES:
+- Only trade with 8+ confidence
+- Follow Pro's strategic bias if provided
+- Use precise 1-minute timing
 
-INSTRUCTIONS:
-1. Follow Pro's strategic bias if provided
-2. Look for tactical entry opportunities in Pro's entry zones
-3. Use 1-minute precision for optimal entries
-4. Manage risk with tight stops
-5. Execute only high-probability setups
-
-Respond in JSON:
+Respond JSON:
 {{
     "signal": "LONG/SHORT/HOLD",
     "confidence": 1-10,
-    "entry": exact_entry_price,
-    "stop_loss": stop_loss_price,
-    "take_profit": take_profit_price,
-    "reasoning": "Tactical analysis and Pro alignment"
+    "entry": {current_price},
+    "stop_loss": price,
+    "take_profit": price,
+    "reasoning": "Brief analysis"
 }}
 """
         
@@ -791,7 +784,7 @@ Respond in JSON:
             # Add timeout for Flash model request
             response = await asyncio.wait_for(
                 asyncio.to_thread(model.generate_content, prompt),
-                timeout=15.0  # 15 second timeout for Flash
+                timeout=30.0  # 30 second timeout for Flash
             )
             
         except asyncio.TimeoutError:
