@@ -13,6 +13,8 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 import google.generativeai as genai
 from supabase import create_client
+import pandas as pd
+import ccxt
 from dotenv import load_dotenv
 from collections import deque
 import pandas as pd
@@ -388,19 +390,50 @@ async def aggregate_candles(candles_1min: List[Dict], timeframe: str, limit: int
 
 async def get_data_for_pro(candles_1min: List[Dict]) -> Dict:
     """
-    Prepare data for Gemini Pro strategic analysis
+    Prepare data for Gemini Pro strategic analysis - Direct Binance fetch
     
     Returns:
         Dict with 4H, 1H, 15m candles + current price
     """
     try:
-        # Get current price
+        # Get current price from 1min data
         current_price = float(candles_1min[-1]['close']) if candles_1min else 0
         
-        # Aggregate to multiple timeframes
-        candles_4h = await aggregate_candles(candles_1min, '4h', limit=100)
-        candles_1h = await aggregate_candles(candles_1min, '1h', limit=168) 
+        # Initialize Binance exchange
+        exchange = ccxt.binance({
+            'rateLimit': 1200,
+            'enableRateLimit': True,
+        })
+        
+        # Fetch direct from Binance for better data quality
+        print("📊 Fetching Pro data directly from Binance...")
+        
+        # Fetch 4H candles (100 candles = ~17 days)
+        candles_4h_raw = await asyncio.to_thread(
+            exchange.fetch_ohlcv, 'BTC/USDT', '4h', limit=100
+        )
+        
+        # Fetch 1H candles (168 candles = 7 days) 
+        candles_1h_raw = await asyncio.to_thread(
+            exchange.fetch_ohlcv, 'BTC/USDT', '1h', limit=168
+        )
+        
+        # Use aggregated 15m from 1min data (more recent)
         candles_15m = await aggregate_candles(candles_1min, '15m', limit=96)
+        
+        # Convert Binance format to our format
+        def convert_binance_candles(raw_candles):
+            return [{
+                'timestamp': datetime.fromtimestamp(candle[0]/1000).strftime('%Y-%m-%d %H:%M:%S'),
+                'open': candle[1],
+                'high': candle[2], 
+                'low': candle[3],
+                'close': candle[4],
+                'volume': candle[5]
+            } for candle in raw_candles]
+        
+        candles_4h = convert_binance_candles(candles_4h_raw)
+        candles_1h = convert_binance_candles(candles_1h_raw)
         
         print(f"📊 Pro Data: {len(candles_4h)} 4H candles, {len(candles_1h)} 1H candles, {len(candles_15m)} 15m candles")
         
@@ -410,9 +443,21 @@ async def get_data_for_pro(candles_1min: List[Dict]) -> Dict:
             '15m': candles_15m,
             'current_price': current_price
         }
+        
     except Exception as e:
         print(f"❌ Pro data prep error: {e}")
-        return {'4h': [], '1h': [], '15m': [], 'current_price': 0}
+        # Fallback to aggregated data
+        candles_4h = await aggregate_candles(candles_1min, '4h', limit=100)
+        candles_1h = await aggregate_candles(candles_1min, '1h', limit=168) 
+        candles_15m = await aggregate_candles(candles_1min, '15m', limit=96)
+        current_price = float(candles_1min[-1]['close']) if candles_1min else 0
+        
+        return {
+            '4h': candles_4h,
+            '1h': candles_1h,
+            '15m': candles_15m,
+            'current_price': current_price
+        }
 
 async def get_data_for_flash(candles_1min: List[Dict], pro_directive: Dict) -> Dict:
     """
@@ -784,11 +829,11 @@ Respond JSON:
             # Add timeout for Flash model request
             response = await asyncio.wait_for(
                 asyncio.to_thread(model.generate_content, prompt),
-                timeout=30.0  # 30 second timeout for Flash
+                timeout=60.0  # 60 second timeout for Flash
             )
             
         except asyncio.TimeoutError:
-            print(f"⏰ Flash Request timeout (30s)")
+            print(f"⏰ Flash Request timeout (60s)")
             return {"signal": "HOLD", "confidence": 0, "reasoning": "Flash timeout"}
         except Exception as api_error:
             print(f"❌ Flash API error: {api_error}")
@@ -1501,7 +1546,7 @@ async def main():
     print("🤖 Gemini Trading Bot - Strategic Pro + Tactical Flash v2.1")
     print(f"💰 Demo Capital: ${DEMO_CAPITAL}")
     print("🕐 Pro every 1H, Flash every 1min")
-    print("⚡ Flash timeout: 30s (updated)")  # Force rebuild marker
+    print("⚡ Flash timeout: 60s (updated)")  # Force rebuild marker
     
     valid_keys = [key for key in GEMINI_API_KEYS if key]
     print(f"🔑 API Keys loaded: {len(valid_keys)}/15")
