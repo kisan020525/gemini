@@ -788,7 +788,7 @@ Respond JSON:
             )
             
         except asyncio.TimeoutError:
-            print(f"⏰ Flash Request timeout (15s)")
+            print(f"⏰ Flash Request timeout (30s)")
             return {"signal": "HOLD", "confidence": 0, "reasoning": "Flash timeout"}
         except Exception as api_error:
             print(f"❌ Flash API error: {api_error}")
