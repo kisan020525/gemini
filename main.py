@@ -327,8 +327,11 @@ def get_next_api_key(model_type="flash") -> str:
 async def fetch_latest_candles(limit: int = 25000) -> List[Dict]:
     """Fetch latest candles for comprehensive market analysis"""
     try:
+        print(f"🔍 DEBUG: Requesting {limit} candles from Supabase...")
         response = supabase.table("candles").select("*").order("timestamp", desc=True).limit(limit).execute()
-        return list(reversed(response.data))
+        candles = list(reversed(response.data))
+        print(f"🔍 DEBUG: Actually received {len(candles)} candles from Supabase")
+        return candles
     except Exception as e:
         print(f"❌ Error fetching candles: {e}")
         return []
