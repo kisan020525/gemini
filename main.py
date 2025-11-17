@@ -15,6 +15,7 @@ import google.generativeai as genai
 from supabase import create_client
 from dotenv import load_dotenv
 from collections import deque
+import pandas as pd
 
 load_dotenv()
 
@@ -176,6 +177,10 @@ analysis_memory = []    # Clear analysis memory for fresh start
 winning_trades = 0      # Reset win counter
 last_trade_time = None  # Track last trade time for 30min rule
 
+# Pro model state tracking
+last_pro_analysis = None
+last_pro_call = datetime.now(IST) - timedelta(hours=2)  # Force first Pro call
+
 class Trade:
     def __init__(self, entry_price: float, stop_loss: float, take_profit: float, 
                  position_size: float, direction: str):
@@ -231,7 +236,7 @@ def get_next_lite_api_key() -> str:
     return None
 
 def get_next_api_key(model_type="flash") -> str:
-    """Get next available API key - Pro uses batching, Flash rotates normally"""
+    """Get next available API key - Always rotate to new key for each call"""
     global current_api_key_index, current_pro_key_index, pro_key_call_count
     global api_key_last_used, api_key_daily_count_pro, api_key_daily_count_flash, api_key_daily_reset
     
@@ -246,34 +251,24 @@ def get_next_api_key(model_type="flash") -> str:
             print(f"🔄 Reset daily counter for API Key #{i + 1}")
     
     if model_type == "pro":
-        # Pro model: Check daily limits and rotate keys properly
+        # Pro model: Always rotate to next key for each call
         
         # Try all 15 keys to find available one
         attempts = 0
         while attempts < 15:
+            # Always move to next key
+            current_pro_key_index = (current_pro_key_index + 1) % 15
             key_index = current_pro_key_index
             
             # Check daily limit first (50 calls per day per key)
             if api_key_daily_count_pro[key_index] >= 50:
                 print(f"⏳ Pro Key #{key_index + 1} daily limit reached ({api_key_daily_count_pro[key_index]}/50)")
-                current_pro_key_index = (current_pro_key_index + 1) % 15
-                pro_key_call_count = 0
-                attempts += 1
-                continue
-            
-            # Check if current Pro key needs rotation (49 calls used in batch)
-            if pro_key_call_count >= 49:
-                current_pro_key_index = (current_pro_key_index + 1) % 15
-                pro_key_call_count = 0
-                print(f"🔄 Pro key batch rotation: Switching to Key #{current_pro_key_index + 1}")
                 attempts += 1
                 continue
             
             # Check if this key is overloaded (5 min cooldown)
             if current_time - api_key_rate_limited[key_index] < 300:  # 5 minutes
                 print(f"⏭️ Skipping overloaded Pro Key #{key_index + 1}")
-                current_pro_key_index = (current_pro_key_index + 1) % 15
-                pro_key_call_count = 0
                 attempts += 1
                 continue
             
@@ -327,7 +322,7 @@ def get_next_api_key(model_type="flash") -> str:
         print("⏳ All Flash API keys cooling down, waiting...")
         return None
 
-async def fetch_latest_candles(limit: int = 6000) -> List[Dict]:
+async def fetch_latest_candles(limit: int = 25000) -> List[Dict]:
     """Fetch latest candles for comprehensive market analysis"""
     try:
         response = supabase.table("candles").select("*").order("timestamp", desc=True).limit(limit).execute()
@@ -335,6 +330,154 @@ async def fetch_latest_candles(limit: int = 6000) -> List[Dict]:
     except Exception as e:
         print(f"❌ Error fetching candles: {e}")
         return []
+
+async def aggregate_candles(candles_1min: List[Dict], timeframe: str, limit: int = None) -> List[Dict]:
+    """
+    Aggregate 1-minute candles to higher timeframes
+    
+    Args:
+        candles_1min: List of 1-min candle dictionaries
+        timeframe: '4h', '1h', '15m', '5m'
+        limit: Number of aggregated candles to return (most recent)
+    
+    Returns:
+        List of aggregated candles
+    """
+    if not candles_1min:
+        return []
+    
+    try:
+        # Convert to DataFrame
+        df = pd.DataFrame(candles_1min)
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df.set_index('timestamp', inplace=True)
+        df.sort_index(inplace=True)
+        
+        # Resample mapping
+        resample_map = {
+            '5m': '5T',
+            '15m': '15T', 
+            '1h': '1H',
+            '4h': '4H'
+        }
+        
+        rule = resample_map.get(timeframe, '1H')
+        
+        # Aggregate OHLCV
+        aggregated = df.resample(rule).agg({
+            'open': 'first',
+            'high': 'max',
+            'low': 'min', 
+            'close': 'last',
+            'volume': 'sum'
+        }).dropna()
+        
+        # Return last N candles if limit specified
+        if limit:
+            aggregated = aggregated.tail(limit)
+        
+        # Convert back to list of dicts
+        result = aggregated.reset_index()
+        result['timestamp'] = result['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S')
+        
+        return result.to_dict('records')
+        
+    except Exception as e:
+        print(f"❌ Aggregation error: {e}")
+        return []
+
+async def get_data_for_pro(candles_1min: List[Dict]) -> Dict:
+    """
+    Prepare data for Gemini Pro strategic analysis
+    
+    Returns:
+        Dict with 4H, 1H, 15m candles + current price
+    """
+    try:
+        # Get current price
+        current_price = float(candles_1min[-1]['close']) if candles_1min else 0
+        
+        # Aggregate to multiple timeframes
+        candles_4h = await aggregate_candles(candles_1min, '4h', limit=100)
+        candles_1h = await aggregate_candles(candles_1min, '1h', limit=168) 
+        candles_15m = await aggregate_candles(candles_1min, '15m', limit=96)
+        
+        print(f"📊 Pro Data: {len(candles_4h)} 4H candles, {len(candles_1h)} 1H candles, {len(candles_15m)} 15m candles")
+        
+        return {
+            '4h': candles_4h,
+            '1h': candles_1h,
+            '15m': candles_15m,
+            'current_price': current_price
+        }
+    except Exception as e:
+        print(f"❌ Pro data prep error: {e}")
+        return {'4h': [], '1h': [], '15m': [], 'current_price': 0}
+
+async def get_data_for_flash(candles_1min: List[Dict], pro_directive: Dict) -> Dict:
+    """
+    Prepare data for Gemini Flash tactical execution
+    
+    Returns:
+        Dict with Pro's directive + limited recent data
+    """
+    try:
+        # Get current price
+        current_price = float(candles_1min[-1]['close']) if candles_1min else 0
+        
+        # Flash gets LESS data (last 24 hours max)
+        recent_candles = candles_1min[-1440:]  # Last 1440 minutes = 24 hours
+        
+        # Aggregate recent data
+        candles_1h = await aggregate_candles(recent_candles, '1h', limit=24)
+        candles_15m = await aggregate_candles(recent_candles, '15m', limit=48)
+        candles_1m = recent_candles[-100:]  # Last 100 1-min candles
+        
+        print(f"⚡ Flash Data: {len(candles_1h)} 1H, {len(candles_15m)} 15m, {len(candles_1m)} 1m candles")
+        
+        return {
+            'pro_directive': pro_directive,
+            '1h': candles_1h,
+            '15m': candles_15m, 
+            '1m': candles_1m,
+            'current_price': current_price
+        }
+    except Exception as e:
+        print(f"❌ Flash data prep error: {e}")
+        return {
+            'pro_directive': pro_directive or {},
+            '1h': [], '15m': [], '1m': [],
+            'current_price': 0
+        }
+
+def format_candles_summary(candles: List[Dict], timeframe: str) -> str:
+    """Format candles as concise summary for Pro analysis"""
+    
+    if not candles:
+        return f"No {timeframe} data"
+    
+    summary = f"{timeframe} Candles (Last {len(candles)}):\n"
+    summary += "Time | Open | High | Low | Close | Volume\n"
+    
+    # Show first 3, middle 3, last 10
+    if len(candles) > 20:
+        shown = candles[:3] + candles[len(candles)//2-1:len(candles)//2+2] + candles[-10:]
+    else:
+        shown = candles
+    
+    for c in shown:
+        ts = c['timestamp'][-8:-3] if len(c['timestamp']) > 8 else c['timestamp']
+        summary += f"{ts}|{c['open']:.0f}|{c['high']:.0f}|{c['low']:.0f}|{c['close']:.0f}|{c['volume']:.0f}\n"
+    
+    # Add market context
+    all_closes = [float(c['close']) for c in candles]
+    current = all_closes[-1]
+    high = max(all_closes)
+    low = min(all_closes)
+    
+    summary += f"\n{timeframe} Summary: Current ${current:.0f} | High ${high:.0f} | Low ${low:.0f}\n"
+    
+    return summary
 
 def format_candles_for_gemini(candles: List[Dict]) -> str:
     """Format ALL candles for comprehensive analysis - use full 1M token limit"""
@@ -425,93 +568,66 @@ async def validate_pro_keys():
     print(f"📊 Working Pro Keys: {len(working_keys)}/15")
     return working_keys
 
-async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry_count: int = 0) -> Dict:
-    """Get strategic analysis from Gemini 2.5 Pro with dynamic key filtering"""
-    global pro_analysis_memory, last_pro_analysis
+async def get_gemini_pro_analysis(pro_data: Dict) -> Dict:
+    """
+    MODIFIED: Now receives aggregated data, not raw candles
+    """
     
-    # Prevent infinite retries - max 3 attempts
-    if retry_count >= 3:
-        print("❌ All Pro keys exhausted - using Flash only")
-        return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "All Pro keys exhausted"}
+    current_price = pro_data['current_price']
+    candles_4h = pro_data['4h']
+    candles_1h = pro_data['1h']
+    candles_15m = pro_data['15m']
     
     try:
         # Get next available Pro API key using new rotation system
         api_key = get_next_api_key("pro")
         if not api_key:
             print("🚫 No Pro API keys available - using Flash only")
-            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "No Pro keys available"}
+            return {"signal": "HOLD", "confidence": 0, "reasoning": "No Pro keys available"}
         
+        # Format candles for Pro (show structure, not all data)
+        formatted_4h = format_candles_summary(candles_4h, "4H")
+        formatted_1h = format_candles_summary(candles_1h[-24:], "1H")  # Last 24 hours
+        formatted_15m = format_candles_summary(candles_15m[-48:], "15m")  # Last 12 hours
         
         prompt = f"""
-        You are GEMINI 2.5 PRO - Strategic Master AI for Bitcoin Trading.
-        
-        TRADING STRATEGY & LIMITS:
-        - MAXIMUM 15 TRADES PER DAY - Quality over quantity!
-        - Focus on BIG MOVES only - Target $100+ profit per trade
-        - Use the 50 BIG MOVE CONCEPTS to identify major opportunities
-        - Wait for MAJOR market shifts, not small fluctuations
-        
-        TRADING CONCEPT CHECKLIST - Check which concepts apply to current market:
-        
-        **PRICE ACTION CONCEPTS:**
-        ✓ Psychological Level Break ($95k, $100k zones)
-        ✓ Major Support/Resistance Break 
-        ✓ Market Structure Break (Higher High/Lower Low)
-        ✓ Trend Line Break (Daily/Weekly)
-        ✓ Supply/Demand Zone Test
-        
-        **VOLUME CONCEPTS:**
-        ✓ Volume Breakout (3x+ average volume)
-        ✓ Volume Divergence (Price up, Volume down)
-        ✓ Volume Profile POC Break
-        ✓ Accumulation/Distribution Pattern
-        
-        **TECHNICAL INDICATOR CONCEPTS:**
-        ✓ Moving Average Break (50MA, 200MA)
-        ✓ RSI Divergence (Price vs RSI)
-        ✓ MACD Crossover/Divergence
-        ✓ Bollinger Band Squeeze/Expansion
-        ✓ Stochastic Extreme (>80 or <20)
-        
-        **PATTERN CONCEPTS:**
-        ✓ Reversal Pattern (Head & Shoulders, Double Top/Bottom)
-        ✓ Continuation Pattern (Flag, Pennant, Triangle)
-        ✓ Candlestick Pattern (Doji, Hammer, Engulfing)
-        ✓ Wyckoff Pattern (Accumulation/Distribution)
-        
-        **MARKET STRUCTURE CONCEPTS:**
-        ✓ Liquidity Sweep (Stop Hunt)
-        ✓ Order Block Formation
-        ✓ Fair Value Gap
-        ✓ Institutional Level Test
-        
-        **MOMENTUM CONCEPTS:**
-        ✓ Momentum Shift (Bullish to Bearish or vice versa)
-        ✓ Trend Exhaustion Signal
-        ✓ Breakout with Momentum
-        ✓ Confluence Zone (Multiple concepts align)
-        
-        INSTRUCTIONS: 
-        1. Check current market against these concepts
-        2. Identify which 2-3 concepts are CLEARLY present
-        3. Only trade if you see STRONG evidence of major concepts
-        4. Focus on CONFLUENCE (multiple concepts aligning)
-        
-        Current Bitcoin Price: ${current_price}
-        Market Data: {candles_data[-1000:]}
-        
-        Provide strategic analysis in JSON format:
-        {{
-            "signal": "LONG/SHORT/HOLD",
-            "confidence": 1-10,
-            "entry": {current_price},
-            "stop_loss": price_level,
-            "take_profit": price_level,
-            "trend_direction": "Overall trend",
-            "concepts_identified": ["List 2-3 specific concepts you see clearly"],
-            "reasoning": "Strategic analysis focusing on identified concepts"
-        }}
-        """
+You are GEMINI 2.5 PRO - Strategic Commander for Bitcoin trading.
+
+YOUR ROLE: Provide 1-HOUR strategic guidance for Flash tactical AI.
+
+CURRENT MARKET DATA:
+Price: ${current_price:.0f}
+
+4H CANDLES (Last 100 - Strategic Structure):
+{formatted_4h}
+
+1H CANDLES (Last 24 - Momentum Context):
+{formatted_1h}
+
+15MIN CANDLES (Last 48 - Recent Action):
+{formatted_15m}
+
+INSTRUCTIONS:
+1. Analyze 4H trend structure (Higher Highs/Higher Lows)
+2. Identify major supply/demand zones
+3. Determine strategic BIAS: LONG_BIAS, SHORT_BIAS, or HOLD
+4. Define entry zones where Flash should look for tactical entries
+5. Set invalidation criteria
+
+Respond in JSON:
+{{
+    "signal": "LONG/SHORT/HOLD",
+    "confidence": 1-10,
+    "bias": "LONG_BIAS/SHORT_BIAS/NEUTRAL",
+    "entry_zones": [{{"min": 94000, "max": 94500}}],
+    "stop_loss": price_level,
+    "take_profit": price_level,
+    "trend_4h": "UPTREND/DOWNTREND/RANGE",
+    "instructions_for_flash": "Specific guidance for Flash on what to look for",
+    "invalidation": "What would make this plan wrong",
+    "reasoning": "Strategic analysis"
+}}
+"""
         
         # Configure Gemini Pro with Python SDK
         genai.configure(api_key=api_key)
@@ -524,17 +640,18 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
                     "properties": {
                         "signal": {"type": "string"},
                         "confidence": {"type": "integer"},
-                        "entry": {"type": "number"},
+                        "bias": {"type": "string"},
+                        "entry_zones": {"type": "array"},
                         "stop_loss": {"type": "number"},
                         "take_profit": {"type": "number"},
-                        "trend_direction": {"type": "string"},
+                        "trend_4h": {"type": "string"},
+                        "instructions_for_flash": {"type": "string"},
+                        "invalidation": {"type": "string"},
                         "reasoning": {"type": "string"}
                     }
                 }
             }
         )
-        
-        print(f"📤 Pro Request #{pro_rate_limiter.daily_count}/{pro_rate_limiter.rpd_limit} (Key #{key_index})")
         
         try:
             # Add timeout for Pro model request
@@ -542,12 +659,10 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
                 asyncio.to_thread(model.generate_content, prompt),
                 timeout=30.0  # 30 second timeout
             )
-            print(f"📥 Pro Response received from Key #{key_index}")
             
         except asyncio.TimeoutError:
-            print(f"⏰ Pro Request timeout (30s) - Key #{key_index}")
-            print(f"⏳ Pro quota exceeded - using Flash only")
-            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro timeout"}
+            print(f"⏰ Pro Request timeout (30s)")
+            return {"signal": "HOLD", "confidence": 0, "reasoning": "Pro timeout"}
         except Exception as api_error:
             print(f"❌ Pro API error: {api_error}")
             raise api_error
@@ -557,411 +672,146 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
             pro_analysis['timestamp'] = datetime.now(IST).isoformat()
             pro_analysis['model'] = 'Pro'
             
-            # Store in memory
-            pro_analysis_memory.append(pro_analysis)
-            if len(pro_analysis_memory) > 10:
-                pro_analysis_memory.pop(0)
-            
-            last_pro_analysis = pro_analysis
-            print(f"✅ Pro Success! Key #{key_index} ({pro_rate_limiter.daily_count}/{pro_rate_limiter.rpd_limit} today)")
+            print(f"✅ Pro Strategic Analysis Complete")
             return pro_analysis
             
         except json.JSONDecodeError as e:
             print(f"❌ Pro JSON decode error: {e}")
-            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro JSON error"}
+            return {"signal": "HOLD", "confidence": 0, "reasoning": "Pro JSON error"}
             
     except Exception as e:
         error_msg = str(e)
         if "429" in error_msg or "quota" in error_msg.lower():
             print(f"⏳ Pro quota exceeded - using Flash only")
-            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro quota exceeded"}
+            return {"signal": "HOLD", "confidence": 0, "reasoning": "Pro quota exceeded"}
         
         print(f"❌ Gemini Pro error: {e}")
-        return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": f"Pro error: {e}"}
+        return {"signal": "HOLD", "confidence": 0, "reasoning": f"Pro error: {e}"}
 
-async def get_gemini_flash_signal(candles_data: str, current_price: float) -> Dict:
+async def get_gemini_flash_signal(flash_data: Dict, pro_analysis: Dict = None) -> Dict:
+    """
+    MODIFIED: Now receives structured data and Pro analysis
+    """
+    
+    current_price = flash_data['current_price']
+    candles_1h = flash_data['1h']
+    candles_15m = flash_data['15m']
+    candles_1m = flash_data['1m']
+    
     try:
-        # Get next available API key
-        api_key = get_next_api_key()
+        # Get next available Flash API key
+        api_key = get_next_api_key("flash")
         if not api_key:
-            print("🚫 No API keys available, skipping analysis")
-            return {"signal": "HOLD", "confidence": 0, "reasoning": "No API keys available"}
+            print("🚫 No Flash API keys available")
+            return {"signal": "HOLD", "confidence": 0, "reasoning": "No Flash keys available"}
         
-        # Configure Gemini 2.5 Flash with structured output and thinking mode
+        # Format candles for Flash (recent tactical data)
+        formatted_1h = format_candles_summary(candles_1h[-12:], "1H")  # Last 12 hours
+        formatted_15m = format_candles_summary(candles_15m[-24:], "15m")  # Last 6 hours
+        formatted_1m = format_candles_summary(candles_1m[-60:], "1m")  # Last 1 hour
+        
+        # Pro guidance context
+        pro_context = ""
+        if pro_analysis and pro_analysis.get('signal') != 'HOLD':
+            pro_context = f"""
+STRATEGIC GUIDANCE FROM PRO:
+- Bias: {pro_analysis.get('bias', 'NEUTRAL')}
+- Entry Zones: {pro_analysis.get('entry_zones', [])}
+- Instructions: {pro_analysis.get('instructions_for_flash', 'No specific instructions')}
+- Invalidation: {pro_analysis.get('invalidation', 'Not specified')}
+"""
+        
+        prompt = f"""
+You are GEMINI 2.5 FLASH - Tactical Execution AI.
+
+YOUR ROLE: Execute precise tactical entries based on Pro's strategic guidance.
+
+CURRENT MARKET DATA:
+Price: ${current_price:.0f}
+
+{pro_context}
+
+1H CANDLES (Last 12 - Context):
+{formatted_1h}
+
+15MIN CANDLES (Last 24 - Setup):
+{formatted_15m}
+
+1MIN CANDLES (Last 60 - Entry Timing):
+{formatted_1m}
+
+INSTRUCTIONS:
+1. Follow Pro's strategic bias if provided
+2. Look for tactical entry opportunities in Pro's entry zones
+3. Use 1-minute precision for optimal entries
+4. Manage risk with tight stops
+5. Execute only high-probability setups
+
+Respond in JSON:
+{{
+    "signal": "LONG/SHORT/HOLD",
+    "confidence": 1-10,
+    "entry": exact_entry_price,
+    "stop_loss": stop_loss_price,
+    "take_profit": take_profit_price,
+    "reasoning": "Tactical analysis and Pro alignment"
+}}
+"""
+        
+        # Configure Gemini Flash
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(
-            'gemini-2.5-flash-preview-09-2025',
+            'gemini-2.5-flash',
             generation_config={
                 "response_mime_type": "application/json",
                 "response_schema": {
                     "type": "object",
                     "properties": {
-                        "thinking": {"type": "string"},
                         "signal": {"type": "string"},
                         "confidence": {"type": "integer"},
                         "entry": {"type": "number"},
                         "stop_loss": {"type": "number"},
                         "take_profit": {"type": "number"},
-                        "analysis": {"type": "string"},
                         "reasoning": {"type": "string"}
-                    },
-                    "required": ["thinking", "signal", "confidence", "entry", "stop_loss", "take_profit", "analysis", "reasoning"]
+                    }
                 }
-            },
-            system_instruction="Use the 'thinking' field to show your step-by-step reasoning process before making trading decisions. Think through market patterns, past performance, and risk analysis."
+            }
         )
         
-        # Unleash full AI analytical power with PAST PERFORMANCE
-        prompt = f"""
-        You are GEMINI 2.5 FLASH - Tactical Execution AI in a DUAL AI TRADING SYSTEM, GEMINI WE know you have a lots of knowlage about market how they work how market moves just use your full potential to take trades.
-        
-        SYSTEM OVERVIEW:
-        - You (FLASH) handle TACTICAL execution every minute
-        - GEMINI 2.5 PRO provides STRATEGIC guidance every 4 minutes
-        - You receive Pro's strategic analysis and use it for tactical decisions
-        - You both share memory and collaborate on trades
-        
-        YOUR ROLE AS TACTICAL EXECUTOR:
-        - Execute trades based on Pro's strategic guidance + your tactical analysis
-        - Make minute-by-minute trading decisions
-        - Handle position management (open, close, hold, switch)
-        - Combine Pro's strategy with real-time market conditions
-        - You have FINAL AUTHORITY on all trade execution
-        
-        You are an advanced AI TRADER with COMPLETE CONTROL over all trading decisions.
-
-        FULL TRADING CONTROL:
-        - You control EVERYTHING: when to open, close, hold, or switch positions
-        - Analyze current position (if any) and decide the optimal action
-        - You can close profitable trades early or cut losses before stop loss but make sure if new entry is so much powerful and if we dont want to miss that oppotinity or if you think wrong trade taken other wise wait for hit tp/sl 
-        - You can switch from LONG to SHORT instantly if market reverses
-        - Use your FULL AI intelligence for all trading decisions
-
-        DECISION OPTIONS:
-        - HOLD: Keep current position if still valid
-        - CLOSE: Close current position at market price
-        - OPEN_LONG: Open new long position (only if no current position)
-        - OPEN_SHORT: Open new short position (only if no current position)  
-        - CLOSE_AND_LONG: Close current position AND immediately open long
-        - CLOSE_AND_SHORT: Close current position AND immediately open short
-
-        TRADING FREEDOM & HARD RULES:
-        - ONLY trade when 90%+ confident (confidence: 9-10)
-        - **Trade limit:** Do NOT open more than **15 trades** in a single calendar day. If today's trade count ≥ 15, choose HOLD until next day.
-        - **MINIMUM 30 MINUTES between trades** - UNLESS confidence is 10/10 for very strong moves
-        - **Focus on BIG MOVES only** - Target $100+ profit per trade minimum
-        - Wait for MAJOR market shifts using the 50 BIG MOVE CONCEPTS below
-        - Better to miss trades than take small, mediocre setups
-        
-        TRADING CONCEPT CHECKLIST - Check which concepts apply RIGHT NOW:
-        
-        **IMMEDIATE PRICE ACTION:**
-        ✓ Psychological Level Test ($95k zone)
-        ✓ Support/Resistance Level Test
-        ✓ Market Structure (Break of Structure)
-        ✓ Recent High/Low Test
-        
-        **VOLUME SIGNALS:**
-        ✓ Volume Spike (Above average)
-        ✓ Volume Divergence 
-        ✓ Buying/Selling Pressure
-        
-        **TECHNICAL SIGNALS:**
-        ✓ Moving Average Position
-        ✓ RSI Level (Overbought/Oversold)
-        ✓ MACD Signal
-        ✓ Bollinger Band Position
-        
-        **PATTERN RECOGNITION:**
-        ✓ Candlestick Pattern (Current candle)
-        ✓ Short-term Pattern Formation
-        ✓ Momentum Pattern
-        
-        **MARKET CONTEXT:**
-        ✓ Trend Direction (1H, 4H)
-        ✓ Volatility Level
-        ✓ Time of Day Factor
-        
-        INSTRUCTIONS:
-        1. Check CURRENT market against these concepts
-        2. Identify 1-2 concepts that are CLEARLY happening NOW
-        3. Only suggest trades with CLEAR concept confirmation
-        4. State which specific concepts you see
-        - **Double confirmation required:** A new trade MUST have BOTH: (a) Pro strategic signal indicating approval and (b) Flash tactical confirmation (pattern + market conditions). If both do not agree, choose HOLD.
-        - Prefer **big moves** only — target setups on **5-minute up to 3-hour** candle structures (5m, 10m, 15m, 30m, 1h, 2h, 3h). Avoid tiny micro-scalps on 1m unless explicitly approved by Pro.
-        - Quality over quantity — Better to miss trades than take bad ones. Do not force reaching 15 trades; 1 trade/day is acceptable if market offers only 1 high-quality move.
-        - Avoid taking multiple small trades in the same directional impulse. Prefer a single well-sized trade on the confirmed move.
-        - Use FLEXIBLE risk/reward ratios based strictly on MARKET STRUCTURE.
-        - Use your past 30 trades memory to detect overtrading or negative drift; if past 30 trades show deteriorating edge, increase confidence threshold and reduce daily max trades.
-
-        RISK MANAGEMENT STRATEGY:
-        - Try to avoid premature exits; exit early only if you identify clear danger or contradictory structural signals.
-        - Hold longer when momentum continues; trim or partial-close only at planned partial-profit points (e.g., 50% at mid-TP).
-        - Switch positions if market structure shifts and both Pro + Flash agree on the change.
-        - Prefer technical SL/TP placement derived from market structure and ATR — avoid tiny SLs that get taken by noise.
-        - **Overtrade / loss-streak protection:** Use the last 30 trades to manage risk:
-            * If consecutive_losses >= 3 in last 30 trades → raise confidence requirement by +1 level.
-            * If consecutive_losses >= 4 → pause new entries for 1 hour.
-            * If consecutive_losses >= 5 → stop new entries for the rest of day.
-            * If trade_count_today >= 10 and net PnL in last 30 is negative → reduce daily cap to 8 for the day.
-        - Always ensure position sizing protects account against extreme streaks.
-
-        ANALYSIS APPROACH:
-        - Study the COMPLETE candle structure (all 6,000 candles)
-        - Analyze VOLUME and TRADE COUNT data for confirmation:
-          * High volume + price move = Strong momentum
-          * Low volume + price move = Weak momentum (likely reversal)
-          * Volume spikes = Institutional activity or breakouts
-          * Trade count = Market participation and interest
-        - Identify if market is in: trending, ranging, breakout, or reversal phase
-        - Choose trade type that FITS the current market behavior:
-          * Strong trends = Swing trades with bigger targets
-          * Tight ranges = Scalping trades with quick profits (but prefer 5m+ candle scalps only)
-          * Breakouts = Position trades with extended targets
-          * Reversals = Counter-trend trades with logical exits
-        - Analyze multiple timeframes within the 6,000 candle dataset
-        - Find the BEST opportunity the market is offering right now
-
-        PATTERN RECOGNITION & CONDITIONAL LOGIC:
-        You do NOT predict the future. Instead, you detect repeating patterns and conditional behaviors in the market.
-        When specific conditions appear (such as candle formations, volume spikes, liquidity sweeps, trend structure shifts, fake breakouts, or momentum changes), you compare them to thousands of similar historical patterns from your internal knowledge base.
-        You identify which side the market usually moves toward when these patterns occur, and you estimate probabilities for upward, downward, and sideways movement.
-        Base your decisions on conditional logic (IF X → THEN Y).
-        Always select the highest-probability outcome based on market structure, pattern recognition, and statistical behavior.
-        This approach improves accuracy, removes randomness, and aligns your trading decisions with how professional algorithmic systems operate.
-
-        CONFIRMATION RULE (DOUBLE CONFIRMATION):
-        - A trade may be opened ONLY when:
-          1) PRO model issues a STRATEGIC RECOMMENDATION for direction AND gives a confidence >= 8, AND
-          2) FLASH tactical model confirms the entry with pattern + volume + timeframe alignment AND gives confidence >= 9.
-        - Both confirmations must include suggested SL and TP levels. If either side disagrees on SL/TP sizing, require re-evaluation.
-
-        IMPORTANT: 
-        - Set confidence to 9+ ONLY when you see CRYSTAL CLEAR signals
-        - Choose trade duration based on MARKET STRUCTURE, not fixed rules
-        - Sometimes scalp for $50, sometimes swing for $300+ (prefer swing/big moves)
-        - Place stops and targets where they make TECHNICAL SENSE
-        - If you're not 90%+ sure, choose HOLD - there's always another opportunity
-        - Use your FULL ANALYTICAL POWER on all 6,000 candles
-
-        THESE ARE THE CONCEPTS OF TRADING (for knowledge & pattern matching)
-        1. Support & Resistance Zones
-        2. Supply & Demand Zones
-        3. Order Blocks
-        4. Break of Structure (BOS)
-        5. Market Structure Shift (MSS)
-        6. Fair Value Gaps (FVG)
-        7. Imbalance Fill Zones
-        8. Liquidity Pools
-        9. Stop Hunt / Liquidity Grab
-        10. Double Top / Double Bottom Reversal
-        11. Rejection Candles (Pin Bars)
-        12. Engulfing Patterns
-        13. Breaker Blocks
-        14. Trendline Breakout & Retest
-        15. Range Trading (Accumulation/Distribution)
-        16. Retest Entries after Breakouts
-        17. Swing High / Swing Low Structure
-        18. Killer Zones (Key Time + Key Level Confluence)
-        19. Market Sweep + Reversal Pattern
-        20. Pullback Continuation Pattern
-        21. Uptrend / Downtrend identification
-        22. Internal vs External Market Structure
-        23. Premium (Sell Zone) & Discount (Buy Zone)
-        24. Smart Money Concepts (SMC)
-        25. Institutional Candle Identification
-        26. Confluence Trading (2–3 confirmations)
-        27. Market Reversal Zones (MRZ)
-        28. Trend Continuation Zones (TCZ)
-        29. Entry Trigger Candles
-        30. Multi-timeframe Analysis (HTF + LTF)
-        31. 200 EMA Trend Filter
-        32. 50 EMA Pullback Strategy
-        33. RSI Divergence (Regular + Hidden)
-        34. MACD Cross Momentum Confirmation
-        35. Stochastic Overbought/Oversold
-        36. Volume Profile High/Low Nodes
-        37. VWAP Reversion Strategy
-        38. Bollinger Band Breakout/Mean Reversion
-        39. ATR Volatility-Based Stop Loss
-        40. Ichimoku Cloud Trend Confirmation
-        41. Liquidity Sweep + FVG Entry
-        42. Order Block Retest + BOS Confirmation
-        43. Demand Zone Tap + Bullish Engulfing
-        44. Supply Zone Tap + Bearish Reversal Candle
-        45. Trendline Liquidity Grab + Reversal
-        46. Double Top with Equal Highs (Liquidity) + Breakdown
-        47. Fibonacci 61.8% Retracement Reversal
-        48. Breakout Retest at HTF S/R
-        49. New York Session Reversal Pattern
-        50. London Open Breakout Strategy
-
-        Current Bitcoin price: {current_price:.0f}
-
-        CURRENT POSITION STATUS:
-        {get_current_position_for_gemini()}
-
-        {get_analysis_memory_for_gemini()}
-
-        STRATEGIC CONTEXT FROM PRO MODEL:
-        {get_pro_analysis_for_flash()}
-        
-        IMPORTANT: If Pro model is unavailable (confidence 0) or daily limit reached, you can trade independently with Flash-only analysis. Don't wait for Pro confirmation when Pro is rate-limited.
-
-        {await get_past_trades_for_gemini()}
-
-        CURRENT MARKET DATA:
-        {candles_data}
-
-        ANALYSIS DIRECTIVE:
-        Learn from your past trades! Use your FULL AI knowledge base and PAST PERFORMANCE to make better decisions.
-        Use the last 30 trades memory to detect overtrading, negative drift, or regime change; modify daily caps and confidence thresholds accordingly.
-
-        Apply every relevant concept:
-        - Mathematical models (statistics, probability, regression, neural patterns)
-        - Technical analysis (indicators, patterns, oscillators)
-        - VOLUME ANALYSIS (volume spikes, volume trends, volume confirmation)
-        - TRADE COUNT analysis (market participation, institutional activity)
-        - Market psychology (sentiment, crowd behavior)
-        - Your own trading history and mistakes
-        - Risk management based on past performance
-        - Avoid premature exits; follow your system strictly once a trade is placed
-
-        ANALYSIS IMPROVEMENT DIRECTIVE:
-        Use your internal knowledge base to identify which analytical concepts best apply to the current market.
-        Evaluate multiple methods (statistical, technical, psychological) and select only the 2–3 most relevant for current conditions.
-        Briefly explain why those were selected.
-        Estimate probabilities for each possible direction (up, down, neutral) and choose the highest-probability action.
-
-        COMPUTATIONAL APPROACH:
-        1. Review your past performance and learn from mistakes
-        2. DEEPLY ANALYZE ALL 6,000 candle data points simultaneously
-        3. Identify market phase: trending, ranging, breakout, reversal
-        4. Determine optimal trade duration based on market structure (prefer 5min → 3hr big moves)
-        5. Select the best-fit analytical concepts for current conditions
-        6. Calculate probabilities for scalping vs swing opportunities
-        7. Choose trade type that maximizes profit potential (prefer fewer big trades, not many small ones)
-        8. Place stops and targets at TECHNICAL LEVELS based on full analysis
-        9. Only trade when you have HIGH CONFIDENCE (9+)
-        10. Let the market structure decide everything: duration, targets, stops
-
-        MARKET STRUCTURE ANALYSIS GUIDE:
-        - Examine the complete 6,000 candle dataset for context
-        - Identify major support/resistance levels across all timeframes
-        - ANALYZE VOLUME PATTERNS:
-          * Volume confirmation on breakouts (high volume = valid breakout)
-          * Volume divergence (price up, volume down = weakness)
-          * Volume spikes at key levels (institutional activity)
-          * Trade count patterns (high trades = strong interest)
-        - Determine current market phase and momentum
-        - Find the highest probability opportunity available
-        - Choose scalping if market is choppy/ranging (prefer 5m+)
-        - Choose swing trading if market is trending strongly (1h-3h)
-        - Adapt your strategy to what the market is offering
-        - Don't force a trading style - let the market guide you
-
-        IMPORTANT: You can only have ONE TRADE AT A TIME. If you're not very confident (8+), choose HOLD.
-
-        JSON RESPONSE:
-        {{
-            "thinking": "Step-by-step reasoning: 1) Current position analysis... 2) Market analysis... 3) Decision rationale...",
-            "position_analysis": "Analysis of current position (if any)",
-            "market_analysis": "Current market assessment and key concepts used", 
-            "concepts_identified": ["List 1-2 specific concepts you see clearly RIGHT NOW"],
-            "action": "HOLD/CLOSE/OPEN_LONG/OPEN_SHORT/CLOSE_AND_LONG/CLOSE_AND_SHORT",
-            "confidence": 1-10,
-            "entry": {current_price},
-            "stop_loss": price,
-            "take_profit": price,
-            "risk_reward_ratio": "1:X",
-            "reasoning": "Why this action was chosen and which concepts support it"
-        }}
-
-        LEARN FROM YOUR MISTAKES. ONLY TRADE WITH HIGH CONFIDENCE. AVOID PREMATURE EXITS.
-        """
-        
-        response = model.generate_content(prompt)
-        response_text = response.text.strip()
-        
-        # Enhanced JSON parsing for Gemini 2.5
         try:
-            # Remove markdown formatting
-            if '```json' in response_text:
-                response_text = response_text.split('```json')[1].split('```')[0].strip()
-            elif '```' in response_text:
-                response_text = response_text.split('```')[1].strip()
-            
-            # Clean up common issues
-            response_text = response_text.replace('\n', '').replace('  ', ' ')
-            
-            # Try to find JSON object
-            start = response_text.find('{')
-            end = response_text.rfind('}') + 1
-            if start >= 0 and end > start:
-                response_text = response_text[start:end]
-            
-            result = json.loads(response_text)
-            
-            # Validate and add missing fields
-            result['signal'] = result.get('signal', 'HOLD').upper()
-            result['confidence'] = int(result.get('confidence', 5))
-            result['entry'] = float(result.get('entry', current_price))
-            result['stop_loss'] = float(result.get('stop_loss', current_price * 0.98))
-            result['take_profit'] = float(result.get('take_profit', current_price * 1.04))
-            result['reasoning'] = str(result.get('reasoning', 'AI analysis'))
-            result['ai_analysis'] = str(result.get('ai_analysis', 'Computational analysis'))
-            result['key_factors'] = result.get('key_factors', ['Price Action'])
-            
-            # Store this analysis in memory for future context
-            add_to_analysis_memory(
-                current_price, 
-                result['signal'], 
-                result['confidence'], 
-                result['reasoning']
+            # Add timeout for Flash model request
+            response = await asyncio.wait_for(
+                asyncio.to_thread(model.generate_content, prompt),
+                timeout=15.0  # 15 second timeout for Flash
             )
             
-            return result
-            
-        except (json.JSONDecodeError, ValueError, KeyError) as e:
-            # Enhanced fallback - try to extract signal from text
-            text_upper = response_text.upper()
-            signal = "HOLD"
-            confidence = 5
-            
-            if "BUY" in text_upper and "SELL" not in text_upper:
-                signal = "BUY"
-                confidence = 7
-            elif "SELL" in text_upper and "BUY" not in text_upper:
-                signal = "SELL" 
-                confidence = 7
-            
-            return {
-                "signal": signal,
-                "confidence": confidence,
-                "reasoning": f"Text parse: {response_text[:50]}",
-                "entry": current_price,
-                "stop_loss": current_price * 0.98,
-                "take_profit": current_price * 1.04
-            }
+        except asyncio.TimeoutError:
+            print(f"⏰ Flash Request timeout (15s)")
+            return {"signal": "HOLD", "confidence": 0, "reasoning": "Flash timeout"}
+        except Exception as api_error:
+            print(f"❌ Flash API error: {api_error}")
+            raise api_error
         
+        try:
+            flash_analysis = json.loads(response.text.strip())
+            flash_analysis['timestamp'] = datetime.now(IST).isoformat()
+            flash_analysis['model'] = 'Flash'
+            
+            print(f"✅ Flash Tactical Analysis Complete")
+            return flash_analysis
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ Flash JSON decode error: {e}")
+            return {"signal": "HOLD", "confidence": 0, "reasoning": "Flash JSON error"}
+            
     except Exception as e:
         error_msg = str(e)
-        if "429" in error_msg or "quota" in error_msg.lower() or "rate" in error_msg.lower():
-            print(f"🚫 Rate limit on API key #{current_api_key_index + 1}")
-            # Mark this key as exhausted for today
-            api_key_daily_count_flash[current_api_key_index] = 250
-        else:
-            print(f"❌ Gemini error: {e}")
+        if "429" in error_msg or "quota" in error_msg.lower():
+            print(f"⏳ Flash quota exceeded")
+            return {"signal": "HOLD", "confidence": 0, "reasoning": "Flash quota exceeded"}
         
-        return {
-            "signal": "HOLD", 
-            "confidence": 0, 
-            "reasoning": f"Error: {str(e)[:50]}",
-            "entry": current_price,
-            "stop_loss": current_price * 0.98,
-            "take_profit": current_price * 1.04
-        }
-
+        print(f"❌ Gemini Flash error: {e}")
+        return {"signal": "HOLD", "confidence": 0, "reasoning": f"Flash error: {e}"}
 def add_to_analysis_memory(price: float, signal: str, confidence: int, reasoning: str):
     """Store analysis decision in memory (last 30)"""
     global analysis_memory
@@ -1244,6 +1094,36 @@ async def close_partial_position(exit_price: float, reason: str):
     
     print(f"🎯 PARTIAL PROFIT: 50% closed at ${exit_price:.0f} | Profit: ${partial_pnl:.2f} | Remaining: 50%")
     print(f"💰 Updated Capital: ${demo_balance:.2f}")
+
+async def check_position_exit(current_price: float):
+    """Check if current position should be closed (SL/TP hit)"""
+    global current_position
+    
+    if not current_position or current_position.status != 'open':
+        return
+    
+    should_close = False
+    close_reason = ""
+    
+    # Check stop loss
+    if current_position.direction == 'long':
+        if current_price <= current_position.stop_loss:
+            should_close = True
+            close_reason = "Stop Loss Hit"
+        elif current_price >= current_position.take_profit:
+            should_close = True
+            close_reason = "Take Profit Hit"
+    else:  # short
+        if current_price >= current_position.stop_loss:
+            should_close = True
+            close_reason = "Stop Loss Hit"
+        elif current_price <= current_position.take_profit:
+            should_close = True
+            close_reason = "Take Profit Hit"
+    
+    if should_close:
+        print(f"🎯 {close_reason} @ ${current_price:.0f}")
+        await close_position(current_price, close_reason)
 
 async def close_position(exit_price: float, reason: str):
     """Close current position"""
@@ -1613,12 +1493,12 @@ RECENT TRADES:
         return "Unable to retrieve past performance."
 
 async def main():
-    """Main trading loop triggered by new candles"""
-    global current_position, demo_balance, total_trades, winning_trades, analysis_counter, working_pro_keys
+    """Main trading loop with Pro + Flash architecture"""
+    global current_position, demo_balance, total_trades, winning_trades, last_pro_analysis, last_pro_call
     
-    print("🤖 Gemini Trading Bot - 6K Candle Analysis")
+    print("🤖 Gemini Trading Bot - Strategic Pro + Tactical Flash")
     print(f"💰 Demo Capital: ${DEMO_CAPITAL}")
-    print("🕐 Triggered by new candle updates")
+    print("🕐 Pro every 1H, Flash every 1min")
     
     valid_keys = [key for key in GEMINI_API_KEYS if key]
     print(f"🔑 API Keys loaded: {len(valid_keys)}/15")
@@ -1627,16 +1507,6 @@ async def main():
         print("❌ No API keys found!")
         return
     
-    # Validate Pro keys on startup
-    print("🔍 Validating Pro API keys...")
-    working_pro_keys = await validate_pro_keys()
-    
-    if len(working_pro_keys) == 0:
-        print("❌ No working Pro keys found - Flash-only mode")
-    else:
-        total_daily_calls = len(working_pro_keys) * 50
-        print(f"✅ {len(working_pro_keys)} working Pro keys = {total_daily_calls} daily calls available")
-    
     # Sync position from database on startup
     await sync_position_from_database()
     
@@ -1644,15 +1514,15 @@ async def main():
     
     while True:
         try:
-            # Get all 6k candles
-            candles = await fetch_latest_candles(6000)
-            if not candles:
+            # Get all 25k candles for comprehensive analysis
+            candles_1min = await fetch_latest_candles(25000)
+            if not candles_1min:
                 print("⏳ Waiting for candle data...")
-                await asyncio.sleep(15)  # Check every 15 seconds for scalping
+                await asyncio.sleep(15)
                 continue
             
-            current_candle_time = candles[-1].get('timestamp', '')
-            current_price = float(candles[-1].get('close', 0))
+            current_candle_time = candles_1min[-1].get('timestamp', '')
+            current_price = float(candles_1min[-1].get('close', 0))
             
             if current_price <= 0:
                 await asyncio.sleep(30)
@@ -1660,44 +1530,55 @@ async def main():
             
             # Only analyze when new candle arrives
             if current_candle_time != last_candle_time:
-                print(f"🕐 New candle detected: {datetime.now().strftime('%H:%M:%S')} | Price: ${current_price:.0f}")
+                print(f"🕐 New candle: {datetime.now(IST).strftime('%H:%M:%S')} | Price: ${current_price:.0f}")
                 
-                # Gemini now controls all position management - no automatic TP/SL
+                # Check for automatic position exits (SL/TP)
+                await check_position_exit(current_price)
                 
-                # Skip analysis if position was just closed
-                if not current_position or current_position.status != 'open':
-                    print("📊 No open position - analyzing for new trade")
-                    current_position = None  # Ensure it's properly cleared
+                # Position status
+                if current_position and current_position.status == 'open':
+                    print(f"📊 Open {current_position.direction.upper()} @ ${current_position.entry_price:.0f} | SL: ${current_position.stop_loss:.0f}")
                 else:
-                    print(f"📊 Open {current_position.direction.upper()} @ ${current_position.entry_price:.0f} | SL: ${current_position.stop_loss:.0f} | Current: ${current_price:.0f}")
+                    print("📊 No open position - analyzing for new trade")
                 
-                # Dual AI Analysis System
-                candles_data = format_candles_for_gemini(candles)
+                # PRO ANALYSIS (Every 1 Hour)
+                current_time = datetime.now(IST)
+                should_run_pro = False
                 
-                global analysis_counter
-                analysis_counter += 1
+                if last_pro_call is None:
+                    should_run_pro = True
+                    print("🧠 First Pro analysis")
+                else:
+                    time_since_pro = (current_time - last_pro_call).total_seconds() / 3600  # hours
+                    if time_since_pro >= 1.0:  # 1 hour
+                        should_run_pro = True
+                        print(f"🧠 Pro analysis due (last: {time_since_pro:.1f}h ago)")
                 
-                # Run Pro analysis every 4 minutes (every 4th cycle) - NON-BLOCKING
-                if analysis_counter % 4 == 0 and sum(api_key_daily_count_pro) < 50:
+                if should_run_pro:
                     print("🧠 Running Gemini 2.5 Pro Strategic Analysis...")
-                    # Start Pro analysis in background - don't wait for it
-                    pro_task = asyncio.create_task(get_gemini_pro_analysis(candles_data, current_price))
-                    # Handle completion in background
-                    asyncio.create_task(handle_pro_analysis_completion(pro_task))
+                    pro_data = await get_data_for_pro(candles_1min)
+                    pro_analysis = await get_gemini_pro_analysis(pro_data)
+                    
+                    # Update global Pro state
+                    last_pro_analysis = pro_analysis
+                    last_pro_call = current_time
+                    
+                    print(f"✅ Pro Strategy: {pro_analysis.get('signal')} | Confidence: {pro_analysis.get('confidence')}/10")
+                    print(f"📊 Pro Bias: {pro_analysis.get('bias', 'NEUTRAL')}")
+                    print(f"🎯 Entry Zones: {pro_analysis.get('entry_zones', [])}")
                 
-                # Run Flash analysis every minute
+                # FLASH ANALYSIS (Every 1 Minute)
                 print("⚡ Running Gemini 2.5 Flash Tactical Analysis...")
-                signal = await get_gemini_flash_signal(candles_data, current_price)
+                flash_data = await get_data_for_flash(candles_1min, last_pro_analysis or {})
+                flash_analysis = await get_gemini_flash_signal(flash_data, last_pro_analysis)
                 
-                # Display analysis results
+                # Display Flash results
                 model_used = "Flash + Pro" if last_pro_analysis else "Flash Only"
-                print(f"🧠 {model_used}: {signal.get('signal')} | Confidence: {signal.get('confidence')}/10")
-                print(f"💭 AI Thinking: {signal.get('thinking', 'N/A')[:100]}...")
-                print(f"🤖 AI Analysis: {signal.get('analysis', 'N/A')[:80]}...")
-                print(f"📊 Reasoning: {signal.get('reasoning', 'N/A')[:80]}...")
+                print(f"⚡ {model_used}: {flash_analysis.get('signal')} | Confidence: {flash_analysis.get('confidence')}/10")
+                print(f"📊 Flash Reasoning: {flash_analysis.get('reasoning', 'N/A')[:80]}...")
                 
-                # Execute Gemini's decision (full control)
-                await execute_gemini_action(signal, current_price)
+                # Execute Flash's tactical decision
+                await execute_flash_decision(flash_analysis, current_price)
                 await print_stats()
                 
                 last_candle_time = current_candle_time
@@ -1707,7 +1588,29 @@ async def main():
             
         except Exception as e:
             print(f"❌ Error: {e}")
-            await asyncio.sleep(15)  # Faster retry for scalping
+            await asyncio.sleep(15)
+
+async def execute_flash_decision(flash_analysis: Dict, current_price: float):
+    """Execute Flash's tactical trading decision"""
+    global current_position
+    
+    signal = flash_analysis.get('signal', 'HOLD')
+    confidence = flash_analysis.get('confidence', 0)
+    
+    # Only execute high-confidence signals
+    if confidence < 8:
+        print(f"⏸️ Low confidence ({confidence}/10) - holding")
+        return
+    
+    # Handle different signals
+    if signal == 'LONG' and not current_position:
+        await open_new_position(flash_analysis, current_price, 'long')
+    elif signal == 'SHORT' and not current_position:
+        await open_new_position(flash_analysis, current_price, 'short')
+    elif signal == 'HOLD':
+        print("⏸️ Flash decision: HOLD")
+    else:
+        print(f"⏸️ Flash signal {signal} ignored (position exists or invalid)")
 
 if __name__ == "__main__":
     asyncio.run(main())
