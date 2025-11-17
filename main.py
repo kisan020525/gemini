@@ -776,7 +776,6 @@ Respond in JSON:
                     }
                 }
             }
-        )
         
         try:
             # Add timeout for Flash model request
@@ -812,6 +811,337 @@ Respond in JSON:
         
         print(f"❌ Gemini Flash error: {e}")
         return {"signal": "HOLD", "confidence": 0, "reasoning": f"Flash error: {e}"}
+        - You control EVERYTHING: when to open, close, hold, or switch positions
+        - Analyze current position (if any) and decide the optimal action
+        - You can close profitable trades early or cut losses before stop loss but make sure if new entry is so much powerful and if we dont want to miss that oppotinity or if you think wrong trade taken other wise wait for hit tp/sl 
+        - You can switch from LONG to SHORT instantly if market reverses
+        - Use your FULL AI intelligence for all trading decisions
+
+        DECISION OPTIONS:
+        - HOLD: Keep current position if still valid
+        - CLOSE: Close current position at market price
+        - OPEN_LONG: Open new long position (only if no current position)
+        - OPEN_SHORT: Open new short position (only if no current position)  
+        - CLOSE_AND_LONG: Close current position AND immediately open long
+        - CLOSE_AND_SHORT: Close current position AND immediately open short
+
+        TRADING FREEDOM & HARD RULES:
+        - ONLY trade when 90%+ confident (confidence: 9-10)
+        - **Trade limit:** Do NOT open more than **15 trades** in a single calendar day. If today's trade count ≥ 15, choose HOLD until next day.
+        - **MINIMUM 30 MINUTES between trades** - UNLESS confidence is 10/10 for very strong moves
+        - **Focus on BIG MOVES only** - Target $100+ profit per trade minimum
+        - Wait for MAJOR market shifts using the 50 BIG MOVE CONCEPTS below
+        - Better to miss trades than take small, mediocre setups
+        
+        TRADING CONCEPT CHECKLIST - Check which concepts apply RIGHT NOW:
+        
+        **IMMEDIATE PRICE ACTION:**
+        ✓ Psychological Level Test ($95k zone)
+        ✓ Support/Resistance Level Test
+        ✓ Market Structure (Break of Structure)
+        ✓ Recent High/Low Test
+        
+        **VOLUME SIGNALS:**
+        ✓ Volume Spike (Above average)
+        ✓ Volume Divergence 
+        ✓ Buying/Selling Pressure
+        
+        **TECHNICAL SIGNALS:**
+        ✓ Moving Average Position
+        ✓ RSI Level (Overbought/Oversold)
+        ✓ MACD Signal
+        ✓ Bollinger Band Position
+        
+        **PATTERN RECOGNITION:**
+        ✓ Candlestick Pattern (Current candle)
+        ✓ Short-term Pattern Formation
+        ✓ Momentum Pattern
+        
+        **MARKET CONTEXT:**
+        ✓ Trend Direction (1H, 4H)
+        ✓ Volatility Level
+        ✓ Time of Day Factor
+        
+        INSTRUCTIONS:
+        1. Check CURRENT market against these concepts
+        2. Identify 1-2 concepts that are CLEARLY happening NOW
+        3. Only suggest trades with CLEAR concept confirmation
+        4. State which specific concepts you see
+        - **Double confirmation required:** A new trade MUST have BOTH: (a) Pro strategic signal indicating approval and (b) Flash tactical confirmation (pattern + market conditions). If both do not agree, choose HOLD.
+        - Prefer **big moves** only — target setups on **5-minute up to 3-hour** candle structures (5m, 10m, 15m, 30m, 1h, 2h, 3h). Avoid tiny micro-scalps on 1m unless explicitly approved by Pro.
+        - Quality over quantity — Better to miss trades than take bad ones. Do not force reaching 15 trades; 1 trade/day is acceptable if market offers only 1 high-quality move.
+        - Avoid taking multiple small trades in the same directional impulse. Prefer a single well-sized trade on the confirmed move.
+        - Use FLEXIBLE risk/reward ratios based strictly on MARKET STRUCTURE.
+        - Use your past 30 trades memory to detect overtrading or negative drift; if past 30 trades show deteriorating edge, increase confidence threshold and reduce daily max trades.
+
+        RISK MANAGEMENT STRATEGY:
+        - Try to avoid premature exits; exit early only if you identify clear danger or contradictory structural signals.
+        - Hold longer when momentum continues; trim or partial-close only at planned partial-profit points (e.g., 50% at mid-TP).
+        - Switch positions if market structure shifts and both Pro + Flash agree on the change.
+        - Prefer technical SL/TP placement derived from market structure and ATR — avoid tiny SLs that get taken by noise.
+        - **Overtrade / loss-streak protection:** Use the last 30 trades to manage risk:
+            * If consecutive_losses >= 3 in last 30 trades → raise confidence requirement by +1 level.
+            * If consecutive_losses >= 4 → pause new entries for 1 hour.
+            * If consecutive_losses >= 5 → stop new entries for the rest of day.
+            * If trade_count_today >= 10 and net PnL in last 30 is negative → reduce daily cap to 8 for the day.
+        - Always ensure position sizing protects account against extreme streaks.
+
+        ANALYSIS APPROACH:
+        - Study the COMPLETE candle structure (all 6,000 candles)
+        - Analyze VOLUME and TRADE COUNT data for confirmation:
+          * High volume + price move = Strong momentum
+          * Low volume + price move = Weak momentum (likely reversal)
+          * Volume spikes = Institutional activity or breakouts
+          * Trade count = Market participation and interest
+        - Identify if market is in: trending, ranging, breakout, or reversal phase
+        - Choose trade type that FITS the current market behavior:
+          * Strong trends = Swing trades with bigger targets
+          * Tight ranges = Scalping trades with quick profits (but prefer 5m+ candle scalps only)
+          * Breakouts = Position trades with extended targets
+          * Reversals = Counter-trend trades with logical exits
+        - Analyze multiple timeframes within the 6,000 candle dataset
+        - Find the BEST opportunity the market is offering right now
+
+        PATTERN RECOGNITION & CONDITIONAL LOGIC:
+        You do NOT predict the future. Instead, you detect repeating patterns and conditional behaviors in the market.
+        When specific conditions appear (such as candle formations, volume spikes, liquidity sweeps, trend structure shifts, fake breakouts, or momentum changes), you compare them to thousands of similar historical patterns from your internal knowledge base.
+        You identify which side the market usually moves toward when these patterns occur, and you estimate probabilities for upward, downward, and sideways movement.
+        Base your decisions on conditional logic (IF X → THEN Y).
+        Always select the highest-probability outcome based on market structure, pattern recognition, and statistical behavior.
+        This approach improves accuracy, removes randomness, and aligns your trading decisions with how professional algorithmic systems operate.
+
+        CONFIRMATION RULE (DOUBLE CONFIRMATION):
+        - A trade may be opened ONLY when:
+          1) PRO model issues a STRATEGIC RECOMMENDATION for direction AND gives a confidence >= 8, AND
+          2) FLASH tactical model confirms the entry with pattern + volume + timeframe alignment AND gives confidence >= 9.
+        - Both confirmations must include suggested SL and TP levels. If either side disagrees on SL/TP sizing, require re-evaluation.
+
+        IMPORTANT: 
+        - Set confidence to 9+ ONLY when you see CRYSTAL CLEAR signals
+        - Choose trade duration based on MARKET STRUCTURE, not fixed rules
+        - Sometimes scalp for $50, sometimes swing for $300+ (prefer swing/big moves)
+        - Place stops and targets where they make TECHNICAL SENSE
+        - If you're not 90%+ sure, choose HOLD - there's always another opportunity
+        - Use your FULL ANALYTICAL POWER on all 6,000 candles
+
+        THESE ARE THE CONCEPTS OF TRADING (for knowledge & pattern matching)
+        1. Support & Resistance Zones
+        2. Supply & Demand Zones
+        3. Order Blocks
+        4. Break of Structure (BOS)
+        5. Market Structure Shift (MSS)
+        6. Fair Value Gaps (FVG)
+        7. Imbalance Fill Zones
+        8. Liquidity Pools
+        9. Stop Hunt / Liquidity Grab
+        10. Double Top / Double Bottom Reversal
+        11. Rejection Candles (Pin Bars)
+        12. Engulfing Patterns
+        13. Breaker Blocks
+        14. Trendline Breakout & Retest
+        15. Range Trading (Accumulation/Distribution)
+        16. Retest Entries after Breakouts
+        17. Swing High / Swing Low Structure
+        18. Killer Zones (Key Time + Key Level Confluence)
+        19. Market Sweep + Reversal Pattern
+        20. Pullback Continuation Pattern
+        21. Uptrend / Downtrend identification
+        22. Internal vs External Market Structure
+        23. Premium (Sell Zone) & Discount (Buy Zone)
+        24. Smart Money Concepts (SMC)
+        25. Institutional Candle Identification
+        26. Confluence Trading (2–3 confirmations)
+        27. Market Reversal Zones (MRZ)
+        28. Trend Continuation Zones (TCZ)
+        29. Entry Trigger Candles
+        30. Multi-timeframe Analysis (HTF + LTF)
+        31. 200 EMA Trend Filter
+        32. 50 EMA Pullback Strategy
+        33. RSI Divergence (Regular + Hidden)
+        34. MACD Cross Momentum Confirmation
+        35. Stochastic Overbought/Oversold
+        36. Volume Profile High/Low Nodes
+        37. VWAP Reversion Strategy
+        38. Bollinger Band Breakout/Mean Reversion
+        39. ATR Volatility-Based Stop Loss
+        40. Ichimoku Cloud Trend Confirmation
+        41. Liquidity Sweep + FVG Entry
+        42. Order Block Retest + BOS Confirmation
+        43. Demand Zone Tap + Bullish Engulfing
+        44. Supply Zone Tap + Bearish Reversal Candle
+        45. Trendline Liquidity Grab + Reversal
+        46. Double Top with Equal Highs (Liquidity) + Breakdown
+        47. Fibonacci 61.8% Retracement Reversal
+        48. Breakout Retest at HTF S/R
+        49. New York Session Reversal Pattern
+        50. London Open Breakout Strategy
+
+        Current Bitcoin price: {current_price:.0f}
+
+        CURRENT POSITION STATUS:
+        {get_current_position_for_gemini()}
+
+        {get_analysis_memory_for_gemini()}
+
+        STRATEGIC CONTEXT FROM PRO MODEL:
+        {get_pro_analysis_for_flash()}
+        
+        IMPORTANT: If Pro model is unavailable (confidence 0) or daily limit reached, you can trade independently with Flash-only analysis. Don't wait for Pro confirmation when Pro is rate-limited.
+
+        {await get_past_trades_for_gemini()}
+
+        CURRENT MARKET DATA:
+        {candles_data}
+
+        ANALYSIS DIRECTIVE:
+        Learn from your past trades! Use your FULL AI knowledge base and PAST PERFORMANCE to make better decisions.
+        Use the last 30 trades memory to detect overtrading, negative drift, or regime change; modify daily caps and confidence thresholds accordingly.
+
+        Apply every relevant concept:
+        - Mathematical models (statistics, probability, regression, neural patterns)
+        - Technical analysis (indicators, patterns, oscillators)
+        - VOLUME ANALYSIS (volume spikes, volume trends, volume confirmation)
+        - TRADE COUNT analysis (market participation, institutional activity)
+        - Market psychology (sentiment, crowd behavior)
+        - Your own trading history and mistakes
+        - Risk management based on past performance
+        - Avoid premature exits; follow your system strictly once a trade is placed
+
+        ANALYSIS IMPROVEMENT DIRECTIVE:
+        Use your internal knowledge base to identify which analytical concepts best apply to the current market.
+        Evaluate multiple methods (statistical, technical, psychological) and select only the 2–3 most relevant for current conditions.
+        Briefly explain why those were selected.
+        Estimate probabilities for each possible direction (up, down, neutral) and choose the highest-probability action.
+
+        COMPUTATIONAL APPROACH:
+        1. Review your past performance and learn from mistakes
+        2. DEEPLY ANALYZE ALL 6,000 candle data points simultaneously
+        3. Identify market phase: trending, ranging, breakout, reversal
+        4. Determine optimal trade duration based on market structure (prefer 5min → 3hr big moves)
+        5. Select the best-fit analytical concepts for current conditions
+        6. Calculate probabilities for scalping vs swing opportunities
+        7. Choose trade type that maximizes profit potential (prefer fewer big trades, not many small ones)
+        8. Place stops and targets at TECHNICAL LEVELS based on full analysis
+        9. Only trade when you have HIGH CONFIDENCE (9+)
+        10. Let the market structure decide everything: duration, targets, stops
+
+        MARKET STRUCTURE ANALYSIS GUIDE:
+        - Examine the complete 6,000 candle dataset for context
+        - Identify major support/resistance levels across all timeframes
+        - ANALYZE VOLUME PATTERNS:
+          * Volume confirmation on breakouts (high volume = valid breakout)
+          * Volume divergence (price up, volume down = weakness)
+          * Volume spikes at key levels (institutional activity)
+          * Trade count patterns (high trades = strong interest)
+        - Determine current market phase and momentum
+        - Find the highest probability opportunity available
+        - Choose scalping if market is choppy/ranging (prefer 5m+)
+        - Choose swing trading if market is trending strongly (1h-3h)
+        - Adapt your strategy to what the market is offering
+        - Don't force a trading style - let the market guide you
+
+        IMPORTANT: You can only have ONE TRADE AT A TIME. If you're not very confident (8+), choose HOLD.
+
+        JSON RESPONSE:
+        {{
+            "thinking": "Step-by-step reasoning: 1) Current position analysis... 2) Market analysis... 3) Decision rationale...",
+            "position_analysis": "Analysis of current position (if any)",
+            "market_analysis": "Current market assessment and key concepts used", 
+            "concepts_identified": ["List 1-2 specific concepts you see clearly RIGHT NOW"],
+            "action": "HOLD/CLOSE/OPEN_LONG/OPEN_SHORT/CLOSE_AND_LONG/CLOSE_AND_SHORT",
+            "confidence": 1-10,
+            "entry": {current_price},
+            "stop_loss": price,
+            "take_profit": price,
+            "risk_reward_ratio": "1:X",
+            "reasoning": "Why this action was chosen and which concepts support it"
+        }}
+
+        LEARN FROM YOUR MISTAKES. ONLY TRADE WITH HIGH CONFIDENCE. AVOID PREMATURE EXITS.
+        """
+        
+        response = model.generate_content(prompt)
+        response_text = response.text.strip()
+        
+        # Enhanced JSON parsing for Gemini 2.5
+        try:
+            # Remove markdown formatting
+            if '```json' in response_text:
+                response_text = response_text.split('```json')[1].split('```')[0].strip()
+            elif '```' in response_text:
+                response_text = response_text.split('```')[1].strip()
+            
+            # Clean up common issues
+            response_text = response_text.replace('\n', '').replace('  ', ' ')
+            
+            # Try to find JSON object
+            start = response_text.find('{')
+            end = response_text.rfind('}') + 1
+            if start >= 0 and end > start:
+                response_text = response_text[start:end]
+            
+            result = json.loads(response_text)
+            
+            # Validate and add missing fields
+            result['signal'] = result.get('signal', 'HOLD').upper()
+            result['confidence'] = int(result.get('confidence', 5))
+            result['entry'] = float(result.get('entry', current_price))
+            result['stop_loss'] = float(result.get('stop_loss', current_price * 0.98))
+            result['take_profit'] = float(result.get('take_profit', current_price * 1.04))
+            result['reasoning'] = str(result.get('reasoning', 'AI analysis'))
+            result['ai_analysis'] = str(result.get('ai_analysis', 'Computational analysis'))
+            result['key_factors'] = result.get('key_factors', ['Price Action'])
+            
+            # Store this analysis in memory for future context
+            add_to_analysis_memory(
+                current_price, 
+                result['signal'], 
+                result['confidence'], 
+                result['reasoning']
+            )
+            
+            return result
+            
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            # Enhanced fallback - try to extract signal from text
+            text_upper = response_text.upper()
+            signal = "HOLD"
+            confidence = 5
+            
+            if "BUY" in text_upper and "SELL" not in text_upper:
+                signal = "BUY"
+                confidence = 7
+            elif "SELL" in text_upper and "BUY" not in text_upper:
+                signal = "SELL" 
+                confidence = 7
+            
+            return {
+                "signal": signal,
+                "confidence": confidence,
+                "reasoning": f"Text parse: {response_text[:50]}",
+                "entry": current_price,
+                "stop_loss": current_price * 0.98,
+                "take_profit": current_price * 1.04
+            }
+        
+    except Exception as e:
+        error_msg = str(e)
+        if "429" in error_msg or "quota" in error_msg.lower() or "rate" in error_msg.lower():
+            print(f"🚫 Rate limit on API key #{current_api_key_index + 1}")
+            # Mark this key as exhausted for today
+            api_key_daily_count_flash[current_api_key_index] = 250
+        else:
+            print(f"❌ Gemini error: {e}")
+        
+        return {
+            "signal": "HOLD", 
+            "confidence": 0, 
+            "reasoning": f"Error: {str(e)[:50]}",
+            "entry": current_price,
+            "stop_loss": current_price * 0.98,
+            "take_profit": current_price * 1.04
+        }
+
 def add_to_analysis_memory(price: float, signal: str, confidence: int, reasoning: str):
     """Store analysis decision in memory (last 30)"""
     global analysis_memory
@@ -1493,12 +1823,12 @@ RECENT TRADES:
         return "Unable to retrieve past performance."
 
 async def main():
-    """Main trading loop with Pro + Flash architecture"""
-    global current_position, demo_balance, total_trades, winning_trades, last_pro_analysis, last_pro_call
+    """Main trading loop triggered by new candles"""
+    global current_position, demo_balance, total_trades, winning_trades, analysis_counter, working_pro_keys
     
-    print("🤖 Gemini Trading Bot - Strategic Pro + Tactical Flash")
+    print("🤖 Gemini Trading Bot - 6K Candle Analysis")
     print(f"💰 Demo Capital: ${DEMO_CAPITAL}")
-    print("🕐 Pro every 1H, Flash every 1min")
+    print("🕐 Triggered by new candle updates")
     
     valid_keys = [key for key in GEMINI_API_KEYS if key]
     print(f"🔑 API Keys loaded: {len(valid_keys)}/15")
@@ -1507,6 +1837,16 @@ async def main():
         print("❌ No API keys found!")
         return
     
+    # Validate Pro keys on startup
+    print("🔍 Validating Pro API keys...")
+    working_pro_keys = await validate_pro_keys()
+    
+    if len(working_pro_keys) == 0:
+        print("❌ No working Pro keys found - Flash-only mode")
+    else:
+        total_daily_calls = len(working_pro_keys) * 50
+        print(f"✅ {len(working_pro_keys)} working Pro keys = {total_daily_calls} daily calls available")
+    
     # Sync position from database on startup
     await sync_position_from_database()
     
@@ -1514,15 +1854,15 @@ async def main():
     
     while True:
         try:
-            # Get all 25k candles for comprehensive analysis
-            candles_1min = await fetch_latest_candles(25000)
-            if not candles_1min:
+            # Get all 25k candles for aggregation
+            candles = await fetch_latest_candles(25000)
+            if not candles:
                 print("⏳ Waiting for candle data...")
-                await asyncio.sleep(15)
+                await asyncio.sleep(15)  # Check every 15 seconds for scalping
                 continue
             
-            current_candle_time = candles_1min[-1].get('timestamp', '')
-            current_price = float(candles_1min[-1].get('close', 0))
+            current_candle_time = candles[-1].get('timestamp', '')
+            current_price = float(candles[-1].get('close', 0))
             
             if current_price <= 0:
                 await asyncio.sleep(30)
@@ -1530,55 +1870,44 @@ async def main():
             
             # Only analyze when new candle arrives
             if current_candle_time != last_candle_time:
-                print(f"🕐 New candle: {datetime.now(IST).strftime('%H:%M:%S')} | Price: ${current_price:.0f}")
+                print(f"🕐 New candle detected: {datetime.now().strftime('%H:%M:%S')} | Price: ${current_price:.0f}")
                 
-                # Check for automatic position exits (SL/TP)
-                await check_position_exit(current_price)
+                # Gemini now controls all position management - no automatic TP/SL
                 
-                # Position status
-                if current_position and current_position.status == 'open':
-                    print(f"📊 Open {current_position.direction.upper()} @ ${current_position.entry_price:.0f} | SL: ${current_position.stop_loss:.0f}")
-                else:
+                # Skip analysis if position was just closed
+                if not current_position or current_position.status != 'open':
                     print("📊 No open position - analyzing for new trade")
-                
-                # PRO ANALYSIS (Every 1 Hour)
-                current_time = datetime.now(IST)
-                should_run_pro = False
-                
-                if last_pro_call is None:
-                    should_run_pro = True
-                    print("🧠 First Pro analysis")
+                    current_position = None  # Ensure it's properly cleared
                 else:
-                    time_since_pro = (current_time - last_pro_call).total_seconds() / 3600  # hours
-                    if time_since_pro >= 1.0:  # 1 hour
-                        should_run_pro = True
-                        print(f"🧠 Pro analysis due (last: {time_since_pro:.1f}h ago)")
+                    print(f"📊 Open {current_position.direction.upper()} @ ${current_position.entry_price:.0f} | SL: ${current_position.stop_loss:.0f} | Current: ${current_price:.0f}")
                 
-                if should_run_pro:
+                # Dual AI Analysis System
+                candles_data = format_candles_for_gemini(candles)
+                
+                global analysis_counter
+                analysis_counter += 1
+                
+                # Run Pro analysis every 4 minutes (every 4th cycle) - NON-BLOCKING
+                if analysis_counter % 4 == 0 and sum(api_key_daily_count_pro) < 50:
                     print("🧠 Running Gemini 2.5 Pro Strategic Analysis...")
-                    pro_data = await get_data_for_pro(candles_1min)
-                    pro_analysis = await get_gemini_pro_analysis(pro_data)
-                    
-                    # Update global Pro state
-                    last_pro_analysis = pro_analysis
-                    last_pro_call = current_time
-                    
-                    print(f"✅ Pro Strategy: {pro_analysis.get('signal')} | Confidence: {pro_analysis.get('confidence')}/10")
-                    print(f"📊 Pro Bias: {pro_analysis.get('bias', 'NEUTRAL')}")
-                    print(f"🎯 Entry Zones: {pro_analysis.get('entry_zones', [])}")
+                    # Start Pro analysis in background - don't wait for it
+                    pro_task = asyncio.create_task(get_gemini_pro_analysis(candles_data, current_price))
+                    # Handle completion in background
+                    asyncio.create_task(handle_pro_analysis_completion(pro_task))
                 
-                # FLASH ANALYSIS (Every 1 Minute)
+                # Run Flash analysis every minute
                 print("⚡ Running Gemini 2.5 Flash Tactical Analysis...")
-                flash_data = await get_data_for_flash(candles_1min, last_pro_analysis or {})
-                flash_analysis = await get_gemini_flash_signal(flash_data, last_pro_analysis)
+                signal = await get_gemini_flash_signal(candles_data, current_price)
                 
-                # Display Flash results
+                # Display analysis results
                 model_used = "Flash + Pro" if last_pro_analysis else "Flash Only"
-                print(f"⚡ {model_used}: {flash_analysis.get('signal')} | Confidence: {flash_analysis.get('confidence')}/10")
-                print(f"📊 Flash Reasoning: {flash_analysis.get('reasoning', 'N/A')[:80]}...")
+                print(f"🧠 {model_used}: {signal.get('signal')} | Confidence: {signal.get('confidence')}/10")
+                print(f"💭 AI Thinking: {signal.get('thinking', 'N/A')[:100]}...")
+                print(f"🤖 AI Analysis: {signal.get('analysis', 'N/A')[:80]}...")
+                print(f"📊 Reasoning: {signal.get('reasoning', 'N/A')[:80]}...")
                 
-                # Execute Flash's tactical decision
-                await execute_flash_decision(flash_analysis, current_price)
+                # Execute Gemini's decision (full control)
+                await execute_gemini_action(signal, current_price)
                 await print_stats()
                 
                 last_candle_time = current_candle_time
@@ -1588,29 +1917,7 @@ async def main():
             
         except Exception as e:
             print(f"❌ Error: {e}")
-            await asyncio.sleep(15)
-
-async def execute_flash_decision(flash_analysis: Dict, current_price: float):
-    """Execute Flash's tactical trading decision"""
-    global current_position
-    
-    signal = flash_analysis.get('signal', 'HOLD')
-    confidence = flash_analysis.get('confidence', 0)
-    
-    # Only execute high-confidence signals
-    if confidence < 8:
-        print(f"⏸️ Low confidence ({confidence}/10) - holding")
-        return
-    
-    # Handle different signals
-    if signal == 'LONG' and not current_position:
-        await open_new_position(flash_analysis, current_price, 'long')
-    elif signal == 'SHORT' and not current_position:
-        await open_new_position(flash_analysis, current_price, 'short')
-    elif signal == 'HOLD':
-        print("⏸️ Flash decision: HOLD")
-    else:
-        print(f"⏸️ Flash signal {signal} ignored (position exists or invalid)")
+            await asyncio.sleep(15)  # Faster retry for scalping
 
 if __name__ == "__main__":
     asyncio.run(main())
