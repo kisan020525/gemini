@@ -246,18 +246,28 @@ def get_next_api_key(model_type="flash") -> str:
             print(f"🔄 Reset daily counter for API Key #{i + 1}")
     
     if model_type == "pro":
-        # Pro model: Use batching (49 calls per key) with overload checking
+        # Pro model: Check daily limits and rotate keys properly
         
-        # Check if current Pro key needs rotation (49 calls used)
-        if pro_key_call_count >= 49:
-            current_pro_key_index = (current_pro_key_index + 1) % 15
-            pro_key_call_count = 0
-            print(f"🔄 Pro key rotation: Switching to Key #{current_pro_key_index + 1}")
-        
-        # Skip overloaded keys (check up to 15 keys)
+        # Try all 15 keys to find available one
         attempts = 0
         while attempts < 15:
             key_index = current_pro_key_index
+            
+            # Check daily limit first (50 calls per day per key)
+            if api_key_daily_count_pro[key_index] >= 50:
+                print(f"⏳ Pro Key #{key_index + 1} daily limit reached ({api_key_daily_count_pro[key_index]}/50)")
+                current_pro_key_index = (current_pro_key_index + 1) % 15
+                pro_key_call_count = 0
+                attempts += 1
+                continue
+            
+            # Check if current Pro key needs rotation (49 calls used in batch)
+            if pro_key_call_count >= 49:
+                current_pro_key_index = (current_pro_key_index + 1) % 15
+                pro_key_call_count = 0
+                print(f"🔄 Pro key batch rotation: Switching to Key #{current_pro_key_index + 1}")
+                attempts += 1
+                continue
             
             # Check if this key is overloaded (5 min cooldown)
             if current_time - api_key_rate_limited[key_index] < 300:  # 5 minutes
@@ -274,10 +284,14 @@ def get_next_api_key(model_type="flash") -> str:
                 api_key_daily_count_pro[key_index] += 1
                 print(f"🔑 Using Pro API Key #{key_index + 1} (Batch: {pro_key_call_count}/49, Daily: {api_key_daily_count_pro[key_index]}/50)")
                 return api_key
-            
-            attempts += 1
+            else:
+                print(f"❌ Pro Key #{key_index + 1} is None")
+                current_pro_key_index = (current_pro_key_index + 1) % 15
+                pro_key_call_count = 0
+                attempts += 1
+                continue
         
-        print("❌ All Pro keys overloaded or unavailable")
+        print("❌ All Pro keys exhausted or unavailable")
         return None
             
     else:
@@ -413,7 +427,7 @@ async def validate_pro_keys():
 
 async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry_count: int = 0) -> Dict:
     """Get strategic analysis from Gemini 2.5 Pro with dynamic key filtering"""
-    global pro_analysis_memory, last_pro_analysis, working_pro_keys
+    global pro_analysis_memory, last_pro_analysis
     
     # Prevent infinite retries - max 3 attempts
     if retry_count >= 3:
@@ -421,18 +435,12 @@ async def get_gemini_pro_analysis(candles_data: str, current_price: float, retry
         return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "All Pro keys exhausted"}
     
     try:
-        # Check rate limiter first
-        if not await pro_rate_limiter.wait_for_slot():
-            print("🚫 Pro daily limit reached - using Flash only")
-            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "Pro daily limit reached"}
+        # Get next available Pro API key using new rotation system
+        api_key = get_next_api_key("pro")
+        if not api_key:
+            print("🚫 No Pro API keys available - using Flash only")
+            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "No Pro keys available"}
         
-        # Use working Pro API key
-        if not working_pro_keys:
-            print("🚫 No working Pro API keys available")
-            return last_pro_analysis or {"signal": "HOLD", "confidence": 0, "reasoning": "No working Pro keys"}
-            
-        # Use next working key (rotate through them)
-        key_index, api_key = working_pro_keys[pro_rate_limiter.daily_count % len(working_pro_keys)]
         
         prompt = f"""
         You are GEMINI 2.5 PRO - Strategic Master AI for Bitcoin Trading.
