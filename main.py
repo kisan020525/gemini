@@ -404,10 +404,10 @@ async def get_data_for_pro(candles_1min: List[Dict]) -> Dict:
             print(f"🔍 DEBUG: First candle: {candles_1min[0]['timestamp']}")
             print(f"🔍 DEBUG: Last candle: {candles_1min[-1]['timestamp']}")
         
-        # Aggregate to multiple timeframes from Supabase data
-        candles_4h = await aggregate_candles(candles_1min, '4h', limit=100)
-        candles_1h = await aggregate_candles(candles_1min, '1h', limit=168) 
-        candles_15m = await aggregate_candles(candles_1min, '15m', limit=96)
+        # Aggregate to multiple timeframes from Supabase data - NO LIMITS
+        candles_4h = await aggregate_candles(candles_1min, '4h')  # Get ALL 4H candles
+        candles_1h = await aggregate_candles(candles_1min, '1h')  # Get ALL 1H candles
+        candles_15m = await aggregate_candles(candles_1min, '15m', limit=96)  # Keep 15m limit
         
         print(f"📊 Pro Data: {len(candles_4h)} 4H candles, {len(candles_1h)} 1H candles, {len(candles_15m)} 15m candles")
         
