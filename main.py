@@ -325,13 +325,31 @@ def get_next_api_key(model_type="flash") -> str:
         return None
 
 async def fetch_latest_candles(limit: int = 25000) -> List[Dict]:
-    """Fetch latest candles for comprehensive market analysis"""
+    """Fetch latest candles for comprehensive market analysis - with pagination"""
     try:
         print(f"🔍 DEBUG: Requesting {limit} candles from Supabase...")
-        response = supabase.table("candles").select("*").order("timestamp", desc=True).limit(limit).execute()
-        candles = list(reversed(response.data))
-        print(f"🔍 DEBUG: Actually received {len(candles)} candles from Supabase")
+        
+        # Try to get all candles without limit first
+        response = supabase.table("candles").select("*").order("timestamp", desc=True).execute()
+        all_candles = response.data
+        
+        print(f"🔍 DEBUG: Total candles in database: {len(all_candles)}")
+        
+        # Take the most recent 'limit' candles
+        if len(all_candles) > limit:
+            candles = all_candles[:limit]  # Already ordered desc, so first N are most recent
+        else:
+            candles = all_candles
+            
+        # Reverse to get chronological order (oldest first)
+        candles = list(reversed(candles))
+        
+        print(f"🔍 DEBUG: Actually using {len(candles)} candles for analysis")
+        if candles:
+            print(f"🔍 DEBUG: Date range: {candles[0]['timestamp']} to {candles[-1]['timestamp']}")
+        
         return candles
+        
     except Exception as e:
         print(f"❌ Error fetching candles: {e}")
         return []
