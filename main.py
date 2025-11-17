@@ -399,12 +399,21 @@ async def get_data_for_pro(candles_1min: List[Dict]) -> Dict:
         # Get current price
         current_price = float(candles_1min[-1]['close']) if candles_1min else 0
         
+        print(f"🔍 DEBUG: Input 1min candles: {len(candles_1min)}")
+        if candles_1min:
+            print(f"🔍 DEBUG: First candle: {candles_1min[0]['timestamp']}")
+            print(f"🔍 DEBUG: Last candle: {candles_1min[-1]['timestamp']}")
+        
         # Aggregate to multiple timeframes from Supabase data
         candles_4h = await aggregate_candles(candles_1min, '4h', limit=100)
         candles_1h = await aggregate_candles(candles_1min, '1h', limit=168) 
         candles_15m = await aggregate_candles(candles_1min, '15m', limit=96)
         
         print(f"📊 Pro Data: {len(candles_4h)} 4H candles, {len(candles_1h)} 1H candles, {len(candles_15m)} 15m candles")
+        
+        if candles_4h:
+            print(f"🔍 DEBUG: First 4H candle: {candles_4h[0]['timestamp']}")
+            print(f"🔍 DEBUG: Last 4H candle: {candles_4h[-1]['timestamp']}")
         
         return {
             '4h': candles_4h,
