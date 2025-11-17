@@ -665,18 +665,12 @@ Respond in JSON:
         )
         
         try:
-            # Add timeout for Pro model request
-            response = await asyncio.wait_for(
-                asyncio.to_thread(model.generate_content, prompt),
-                timeout=30.0  # 30 second timeout
-            )
+            # Remove timeout - let Pro take as long as it needs
+            response = await asyncio.to_thread(model.generate_content, prompt)
             
-        except asyncio.TimeoutError:
-            print(f"⏰ Pro Request timeout (30s)")
-            return {"signal": "HOLD", "confidence": 0, "reasoning": "Pro timeout"}
         except Exception as api_error:
             print(f"❌ Pro API error: {api_error}")
-            raise api_error
+            return {"signal": "HOLD", "confidence": 0, "reasoning": "Pro API error"}
         
         try:
             pro_analysis = json.loads(response.text.strip())
@@ -783,18 +777,12 @@ Respond JSON:
         )
         
         try:
-            # Add timeout for Flash model request
-            response = await asyncio.wait_for(
-                asyncio.to_thread(model.generate_content, prompt),
-                timeout=60.0  # 60 second timeout for Flash
-            )
+            # Remove timeout - let Flash take as long as it needs
+            response = await asyncio.to_thread(model.generate_content, prompt)
             
-        except asyncio.TimeoutError:
-            print(f"⏰ Flash Request timeout (60s)")
-            return {"signal": "HOLD", "confidence": 0, "reasoning": "Flash timeout"}
         except Exception as api_error:
             print(f"❌ Flash API error: {api_error}")
-            raise api_error
+            return {"signal": "HOLD", "confidence": 0, "reasoning": "Flash API error"}
         
         try:
             flash_analysis = json.loads(response.text.strip())
@@ -1503,7 +1491,7 @@ async def main():
     print("🤖 Gemini Trading Bot - Strategic Pro + Tactical Flash v2.1")
     print(f"💰 Demo Capital: ${DEMO_CAPITAL}")
     print("🕐 Pro every 1H, Flash every 1min")
-    print("⚡ Flash timeout: 60s (updated)")  # Force rebuild marker
+    print("⚡ Flash timeout: REMOVED (unlimited)")  # No timeout
     
     valid_keys = [key for key in GEMINI_API_KEYS if key]
     print(f"🔑 API Keys loaded: {len(valid_keys)}/15")
