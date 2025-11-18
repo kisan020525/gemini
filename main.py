@@ -324,6 +324,36 @@ def get_next_api_key(model_type="flash") -> str:
         print("⏳ All Flash API keys cooling down, waiting...")
         return None
 
+async def test_supabase_limits():
+    """Test how many candles we can actually get from Supabase"""
+    print("🧪 TESTING SUPABASE LIMITS")
+    print("=" * 40)
+    
+    try:
+        # Test different limits
+        for limit in [1000, 2000, 5000, 10000, 25000]:
+            print(f"\n📊 Testing limit: {limit}")
+            response = supabase.table("candles").select("*").order("timestamp", desc=True).limit(limit).execute()
+            print(f"✅ Got {len(response.data)} candles with limit {limit}")
+            
+            if len(response.data) < limit:
+                print(f"⚠️ Database only has {len(response.data)} total candles")
+                break
+        
+        # Test no limit
+        print(f"\n📊 Testing no limit")
+        response = supabase.table("candles").select("*").order("timestamp", desc=True).execute()
+        print(f"✅ Got {len(response.data)} candles with no limit")
+        
+        # Get date range
+        if response.data:
+            oldest = response.data[-1]['timestamp']
+            newest = response.data[0]['timestamp']
+            print(f"📅 Date range: {oldest} to {newest}")
+            
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
 async def fetch_latest_candles(limit: int = 25000) -> List[Dict]:
     """Fetch latest candles for comprehensive market analysis"""
     try:
@@ -1545,6 +1575,10 @@ async def main():
     if len(valid_keys) == 0:
         print("❌ No API keys found!")
         return
+    
+    # Test Supabase limits on startup
+    print("🔍 Testing Supabase candle limits...")
+    await test_supabase_limits()
     
     # Sync position from database on startup
     await sync_position_from_database()
