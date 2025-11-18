@@ -810,10 +810,13 @@ STRATEGIC GUIDANCE FROM PRO:
 - Invalidation: {pro_analysis.get('invalidation', 'Not specified')}
 """
         
+        # Don't pass candle data to Flash - just price and Pro context
         prompt = f"""
-Bitcoin: ${current_price:.0f}
+Bitcoin price: ${current_price:.0f}
 
-Analyze for trade. Respond ONLY in this JSON format:
+{pro_context}
+
+Give trading signal. Respond ONLY this JSON:
 
 {{
     "signal": "HOLD",
@@ -821,7 +824,7 @@ Analyze for trade. Respond ONLY in this JSON format:
     "entry": {current_price},
     "stop_loss": {current_price * 0.98:.0f},
     "take_profit": {current_price * 1.02:.0f},
-    "reasoning": "Brief reason"
+    "reasoning": "Brief"
 }}
 """
         
@@ -1568,10 +1571,6 @@ async def main():
     if len(valid_keys) == 0:
         print("❌ No API keys found!")
         return
-    
-    # Test Supabase limits on startup
-    print("🔍 Testing Supabase candle limits...")
-    await test_supabase_limits()
     
     # Sync position from database on startup
     await sync_position_from_database()
