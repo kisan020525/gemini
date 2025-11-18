@@ -794,21 +794,10 @@ async def get_gemini_flash_signal(flash_data: Dict, pro_analysis: Dict = None) -
             print("🚫 No Flash API keys available")
             return {"signal": "HOLD", "confidence": 0, "reasoning": "No Flash keys available"}
         
-        # Format candles for Flash (recent tactical data)
-        formatted_1h = format_candles_summary(candles_1h[-12:], "1H")  # Last 12 hours
-        formatted_15m = format_candles_summary(candles_15m[-24:], "15m")  # Last 6 hours
-        formatted_1m = format_candles_summary(candles_1m[-60:], "1m")  # Last 1 hour
-        
-        # Pro guidance context
+        # Minimal Pro context - NO candle data
         pro_context = ""
         if pro_analysis and pro_analysis.get('signal') != 'HOLD':
-            pro_context = f"""
-STRATEGIC GUIDANCE FROM PRO:
-- Bias: {pro_analysis.get('bias', 'NEUTRAL')}
-- Entry Zones: {pro_analysis.get('entry_zones', [])}
-- Instructions: {pro_analysis.get('instructions_for_flash', 'No specific instructions')}
-- Invalidation: {pro_analysis.get('invalidation', 'Not specified')}
-"""
+            pro_context = f"Pro bias: {pro_analysis.get('bias', 'NEUTRAL')}"
         
         # Don't pass candle data to Flash - just price and Pro context
         prompt = f"""
