@@ -811,24 +811,17 @@ STRATEGIC GUIDANCE FROM PRO:
 """
         
         prompt = f"""
-FLASH AI - Bitcoin Trading
+Bitcoin: ${current_price:.0f}
 
-Price: ${current_price:.0f}
-Data: {len(candles_1h)}H {len(candles_15m)}15m {len(candles_1m)}1m candles
+Analyze for trade. Respond ONLY in this JSON format:
 
-{pro_context}
-
-Task: Analyze for trade opportunity.
-Rules: Only trade 8+ confidence.
-
-JSON response:
 {{
-    "signal": "LONG/SHORT/HOLD",
+    "signal": "HOLD",
     "confidence": 5,
     "entry": {current_price},
     "stop_loss": {current_price * 0.98:.0f},
     "take_profit": {current_price * 1.02:.0f},
-    "reasoning": "Brief analysis"
+    "reasoning": "Brief reason"
 }}
 """
         
