@@ -325,42 +325,31 @@ def get_next_api_key(model_type="flash") -> str:
         return None
 
 async def fetch_latest_candles(limit: int = 25000) -> List[Dict]:
-    """Fetch latest candles for comprehensive market analysis - with pagination"""
+    """Fetch latest candles for comprehensive market analysis"""
     try:
-        print(f"🔍 DEBUG: Requesting {limit} candles from Supabase...")
-        
-        # Try to get all candles without limit first
         response = supabase.table("candles").select("*").order("timestamp", desc=True).execute()
         all_candles = response.data
         
-        print(f"🔍 DEBUG: Total candles in database: {len(all_candles)}")
-        
         # Take the most recent 'limit' candles
         if len(all_candles) > limit:
-            candles = all_candles[:limit]  # Already ordered desc, so first N are most recent
+            candles = all_candles[:limit]
         else:
             candles = all_candles
             
-        # Reverse to get chronological order (oldest first)
+        # Reverse to get chronological order
         candles = list(reversed(candles))
         
         # Normalize timestamp formats
         normalized_candles = []
         for candle in candles:
-            # Convert ISO8601 to simple format if needed
             timestamp = candle['timestamp']
             if 'T' in timestamp and '+' in timestamp:
-                # Convert "2025-11-17T09:10:00+00:00" to "2025-11-17 09:10:00"
                 dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
                 timestamp = dt.strftime('%Y-%m-%d %H:%M:%S')
             
             normalized_candle = candle.copy()
             normalized_candle['timestamp'] = timestamp
             normalized_candles.append(normalized_candle)
-        
-        print(f"🔍 DEBUG: Actually using {len(normalized_candles)} candles for analysis")
-        if normalized_candles:
-            print(f"🔍 DEBUG: Date range: {normalized_candles[0]['timestamp']} to {normalized_candles[-1]['timestamp']}")
         
         return normalized_candles
         
@@ -792,31 +781,23 @@ STRATEGIC GUIDANCE FROM PRO:
 """
         
         prompt = f"""
-FLASH - Tactical Bitcoin Trading AI
+FLASH AI - Bitcoin Trading
 
-MARKET: ${current_price:.0f}
+Price: ${current_price:.0f}
+Data: {len(candles_1h)}H {len(candles_15m)}15m {len(candles_1m)}1m candles
 
 {pro_context}
 
-RECENT DATA:
-1H: {len(candles_1h)} candles
-15m: {len(candles_15m)} candles  
-1m: {len(candles_1m)} candles
+Task: Analyze for trade opportunity.
+Rules: Only trade 8+ confidence.
 
-TASK: Analyze current market for tactical entry opportunity.
-
-RULES:
-- Only trade with 8+ confidence
-- Follow Pro's strategic bias if provided
-- Use precise 1-minute timing
-
-Respond JSON:
+JSON response:
 {{
     "signal": "LONG/SHORT/HOLD",
-    "confidence": 1-10,
+    "confidence": 5,
     "entry": {current_price},
-    "stop_loss": price,
-    "take_profit": price,
+    "stop_loss": {current_price * 0.98:.0f},
+    "take_profit": {current_price * 1.02:.0f},
     "reasoning": "Brief analysis"
 }}
 """
